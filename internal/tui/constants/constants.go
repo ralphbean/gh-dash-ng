@@ -98,6 +98,6 @@ const (
 	LabelPrompt    = "Add/remove labels (comma-separated)" + Ellipsis
 	ReplyPrompt    = "Reply to thread" + Ellipsis
 
-	Logo = `▜▔▚▐▔▌▚▔▐ ▌
-▟▁▞▐▔▌▁▚▐▔▌`
+	Logo = `▜▔▚▐▔▌▚▔▐ ▌ ▐▔▌▚▔▌
+▟▁▞▐▔▌▁▚▐▔▌▔▐ ▌▁▁▞`
 )
