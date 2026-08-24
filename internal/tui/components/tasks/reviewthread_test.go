@@ -41,10 +41,14 @@ func TestReplyToReviewThread_MsgCallbackReturnsNewThreadReply(t *testing.T) {
 	// pattern in issue_test.go).
 	task := GitHubTask{
 		Args: []string{
-			"api", "graphql",
-			"-f", "query=mutation($threadId:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$threadId,body:$body}){comment{id}}}",
-			"-f", "threadId=" + threadId,
-			"-f", "body=" + body,
+			"api",
+			"graphql",
+			"-f",
+			"query=mutation($threadId:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$threadId,body:$body}){comment{id}}}",
+			"-f",
+			"threadId=" + threadId,
+			"-f",
+			"body=" + body,
 		},
 		Msg: func(c *exec.Cmd, err error) tea.Msg {
 			return UpdatePRMsg{
@@ -95,9 +99,12 @@ func TestResolveReviewThread_MsgCallbackReturnsResolvedThreadId(t *testing.T) {
 
 	task := GitHubTask{
 		Args: []string{
-			"api", "graphql",
-			"-f", "query=mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id}}}",
-			"-f", "threadId=" + threadId,
+			"api",
+			"graphql",
+			"-f",
+			"query=mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id}}}",
+			"-f",
+			"threadId=" + threadId,
 		},
 		Msg: func(c *exec.Cmd, err error) tea.Msg {
 			return UpdatePRMsg{
