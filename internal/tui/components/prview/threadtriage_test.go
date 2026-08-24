@@ -298,7 +298,11 @@ func TestAppendThreadReply_AppendsToMatchingTriageThread(t *testing.T) {
 
 	require.Len(t, m.threadTriage.threads[0].Comments.Nodes, 2)
 	require.Equal(t, "sounds good", m.threadTriage.threads[0].Comments.Nodes[1].Body)
-	require.Empty(t, m.threadTriage.threads[1].Comments.Nodes, "unrelated thread should be unchanged")
+	require.Empty(
+		t,
+		m.threadTriage.threads[1].Comments.Nodes,
+		"unrelated thread should be unchanged",
+	)
 }
 
 func TestAppendThreadReply_NoOpWhenNotTriaging(t *testing.T) {
