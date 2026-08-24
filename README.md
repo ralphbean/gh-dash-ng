@@ -1,16 +1,3 @@
-<br />
-<p align="center">
-  <a  class="underline: none;" href="https://gh-dash.dev">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./docs/public/logo.png">
-      <img alt="Text changing depending on mode. Light: 'So light!' Dark: 'So dark!'" width="600" src="./docs/public/logo-light.png">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-    <a href="https://gh-dash.dev" target="_blank">→ https://gh-dash.dev ←</a>
-</p>
 <p align="center">
   A rich terminal UI for GitHub that doesn't break your flow.
   <br />
