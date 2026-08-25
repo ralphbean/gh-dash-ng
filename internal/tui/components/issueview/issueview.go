@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
+	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/common"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/cmpcontroller"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fuzzyselect"
@@ -139,6 +140,12 @@ func (m Model) View() string {
 	s.WriteString(m.renderLastUpdate())
 	s.WriteString("\n\n")
 
+
+	fullsendStatus := m.renderFullsendStatus()
+	if fullsendStatus != "" {
+		s.WriteString(fullsendStatus)
+		s.WriteString("\n\n")
+	}
 	labels := m.renderLabels()
 	if labels != "" {
 		s.WriteString(labels)
@@ -476,4 +483,47 @@ func (m *Model) repoRef() cmpcontroller.RepoRef {
 
 func (m *Model) hasData() bool {
 	return m.issue != nil
+}
+
+
+func (m *Model) renderFullsendStatus() string {
+	if !m.hasData() {
+		return ""
+	}
+
+	// Check if fullsend integration is enabled
+	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) {
+		return ""
+	}
+
+	// Get fullsend status from store
+	owner, repoName := m.issue.Data.GetRepoNameAndOwner()
+	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, m.issue.Data.GetNumber())
+
+	// Check if there are active agents
+	if len(fullsendStatus.ActiveAgents) == 0 {
+		return ""
+	}
+
+	agents := fullsendStatus.ActiveAgents
+	
+	// Unicode spinner characters for animation
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
+	spinner := spinnerFrames[frameIndex]
+
+	// Build status text
+	var statusParts []string
+	for _, agent := range agents {
+		statusText := fmt.Sprintf("%s %s agent %s", spinner, agent.Type, agent.Status)
+		statusParts = append(statusParts, statusText)
+	}
+
+	fullStatus := strings.Join(statusParts, ", ")
+	
+	statusStyle := lipgloss.NewStyle().
+		Foreground(m.ctx.Theme.SecondaryText).
+		Italic(true)
+	
+	return " " + statusStyle.Render("fullsend: "+fullStatus)
 }

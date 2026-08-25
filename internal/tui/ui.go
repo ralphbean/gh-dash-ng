@@ -29,6 +29,7 @@ import (
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/branch"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/branchsidebar"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/footer"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fullsendmonitor"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/issuessection"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/issueview"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/notificationrow"
@@ -68,6 +69,7 @@ type Model struct {
 	tasks            map[string]context.Task
 	positionOverride string // "" means no override, "right" or "bottom"
 	detailsViewState detailsViewState
+	fullsendMonitor  *fullsendmonitor.Monitor
 }
 
 // detailsViewState tracks whether the full-window details view is active,
@@ -120,6 +122,11 @@ func NewModel(location config.Location, repos Repositories) Model {
 	m.branchSidebar = branchsidebar.NewModel(m.ctx)
 	m.notificationView = notificationview.NewModel(m.ctx)
 	m.tabs = tabs.NewModel(m.ctx)
+
+	// Initialize fullsend monitor if feature flag is enabled
+	enabled := config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)
+	// Poll interval will be set when config is loaded
+	m.fullsendMonitor = fullsendmonitor.NewMonitor(enabled, 0)
 
 	return m
 }
@@ -183,7 +190,12 @@ func (m *Model) initScreen() tea.Msg {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, m.initScreen)
+	return tea.Batch(
+		tea.RequestBackgroundColor,
+		m.initScreen,
+		m.fullsendMonitor.Init(),
+		m.doAnimationTick(),
+	)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -427,6 +439,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.syncSidebar()
 				currSection.SetIsLoading(true)
 				cmds = append(cmds, currSection.FetchNextPageSectionRows()...)
+				// Trigger agent poll on refresh
+				if m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled() {
+					cmds = append(cmds, m.fullsendMonitor.TriggerPoll())
+				}
 			}
 
 		case key.Matches(msg, m.keys.RefreshAll):
@@ -434,6 +450,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			newSections, fetchSectionsCmds := m.fetchAllViewSections()
 			m.setCurrentViewSections(newSections)
 			cmds = append(cmds, fetchSectionsCmds)
+			// Trigger agent poll on refresh all
+			if m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled() {
+				cmds = append(cmds, m.fullsendMonitor.TriggerPoll())
+			}
 
 		case key.Matches(msg, m.keys.Redraw):
 			// with bubbletea v2's declarative approach, if we just clear the screen then tea will redraw for us
@@ -844,6 +864,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			markdown.InitializeMarkdownStyle(m.ctx)
 		}
 
+		// Set fullsend monitor poll interval from config (default 1 minute)
+		if m.fullsendMonitor != nil {
+			pollInterval := msg.Config.Defaults.AgentPollIntervalMinutes
+			if pollInterval == 0 {
+				pollInterval = 1 // Default to 1 minute
+			}
+			interval := time.Duration(pollInterval) * time.Minute
+			m.fullsendMonitor.SetPollInterval(interval)
+		}
+
 		cmds = append(cmds, fetchSectionsCmds, m.tabs.Init(), fetchUser,
 			m.doRefreshAtInterval(), m.doUpdateFooterAtInterval())
 
@@ -877,14 +907,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			scmd := m.updateSection(msg.SectionId, msg.SectionType, msg.Msg)
 			cmds = append(cmds, scmd)
 
-			if updateMsg, ok := msg.Msg.(tasks.UpdatePRMsg); ok && updateMsg.NewThreadReply != nil {
-				m.prView.AppendThreadReply(
-					updateMsg.NewThreadReply.ThreadId,
-					updateMsg.NewThreadReply.Comment,
-				)
+			if updateMsg, ok := msg.Msg.(tasks.UpdatePRMsg); ok {
+				if updateMsg.NewThreadReply != nil {
+					m.prView.AppendThreadReply(
+						updateMsg.NewThreadReply.ThreadId,
+						updateMsg.NewThreadReply.Comment,
+					)
+				}
+
+				// If a comment was posted to a PR (not a thread reply), trigger delayed poll
+				// This likely launched an agent, so we want to check for it
+				if updateMsg.NewComment != nil && m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled() {
+					// Find the PR to get owner/repo
+					for _, section := range m.getCurrentViewSections() {
+						if prSection, ok := section.(*prssection.Model); ok {
+							for _, pr := range prSection.Prs {
+								if pr.Primary.Number == updateMsg.PrNumber {
+									owner, repo := pr.Primary.GetRepoNameAndOwner()
+									delayedPollCmd := func() tea.Msg {
+										return fullsendmonitor.TriggerDelayedPollMsg{
+											Owner:  owner,
+											Repo:   repo,
+											Number: updateMsg.PrNumber,
+											Delay:  5 * time.Second,
+										}
+									}
+									cmds = append(cmds, delayedPollCmd)
+									break
+								}
+							}
+						}
+					}
+				}
 			}
 
 			syncCmd := m.syncSidebar()
+			hasItems := m.updateFullsendMonitorRepos()
+			// Trigger poll when task finishes (PRs/issues loaded)
+			if hasItems && m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled() {
+				log.Debug("Triggering fullsend poll from TaskFinishedMsg", "hasItems", hasItems)
+				cmds = append(cmds, m.fullsendMonitor.TriggerPoll())
+			}
 			cmds = append(cmds, syncCmd)
 		}
 
@@ -893,6 +956,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.prView.SetEnrichedPR(msg.Data)
 			m.prs[msg.Id].(*prssection.Model).EnrichPR(msg.Data)
 			syncCmd := m.syncSidebar()
+			m.updateFullsendMonitorRepos()
 			cmds = append(cmds, syncCmd)
 		} else {
 			log.Error("failed enriching pr", "err", msg.Err)
@@ -902,6 +966,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil {
 			m.prView.SetReviewThreads(msg)
 			syncCmd := m.syncSidebar()
+			m.updateFullsendMonitorRepos()
 			cmds = append(cmds, syncCmd)
 		} else {
 			log.Error("failed fetching review threads", "err", msg.Err)
@@ -978,7 +1043,55 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.footer.SetRightSection("")
 		delete(m.tasks, msg.TaskId)
 
+	case fullsendmonitor.FullsendStatusUpdatedMsg:
+		// TODO: Propagate status updates to issue and PR sections
+		// This will be implemented when sections support dynamic row updates
+		log.Debug("Fullsend status updated", "repo", msg.Repo, "number", msg.Number, "agents", len(msg.ActiveAgents))
+
+	case fullsendmonitor.PollStartedMsg:
+		// Show status notification for poll start
+		task := context.Task{
+			Id:           "fullsend_poll",
+			StartText:    fmt.Sprintf("Polling fullsend status for %d repos", msg.NumRepos),
+			FinishedText: fmt.Sprintf("Fullsend status updated"),
+			State:        context.TaskStart,
+		}
+		cmd = m.ctx.StartTask(task)
+
+	case fullsendmonitor.PollCompletedMsg:
+		// Clear the poll task
+		if msg.Error != nil {
+			log.Warn("Fullsend poll completed with error", "error", msg.Error)
+		}
+		cmd = func() tea.Msg {
+			return constants.ClearTaskMsg{TaskId: "fullsend_poll"}
+		}
+
+	case fullsendmonitor.TriggerDelayedPollMsg:
+		// Forward to monitor for handling
+		cmd = m.fullsendMonitor.Update(msg)
+
+	case fullsendmonitor.DelayedPollTickMsg:
+		// Forward to monitor for handling
+		cmd = m.fullsendMonitor.Update(msg)
+
 	case section.SectionMsg:
+		log.Debug("section.SectionMsg received - checking for poll trigger")
+		hasItems := m.updateFullsendMonitorRepos()
+		log.Debug("updateFullsendMonitorRepos returned",
+			"hasItems", hasItems,
+			"monitorNil", m.fullsendMonitor == nil,
+			"enabled", m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled())
+		// Trigger an immediate poll when PR/issue list loads (only if there are items)
+		if hasItems && m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled() {
+			log.Debug("Triggering fullsend poll from section message", "hasItems", hasItems)
+			cmds = append(cmds, m.fullsendMonitor.TriggerPoll())
+		} else {
+			log.Debug("Skipping fullsend poll from section message",
+				"hasItems", hasItems,
+				"monitorNil", m.fullsendMonitor == nil,
+				"enabled", m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled())
+		}
 		cmd = m.updateRelevantSection(msg)
 
 		if msg.Id == m.currSectionId {
@@ -1028,6 +1141,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case updateFooterMsg:
 		cmds = append(cmds, cmd, m.doUpdateFooterAtInterval())
 
+	case animationTickMsg:
+		// Schedule next animation tick for smooth spinner updates
+		cmds = append(cmds, m.doAnimationTick())
+
 	case constants.ErrMsg:
 		m.ctx.Error = msg.Err
 	}
@@ -1061,6 +1178,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	tm, tabsCmd := m.tabs.Update(msg)
+
+	// Update fullsend monitor
+	monitorCmd := m.fullsendMonitor.Update(msg)
 	m.tabs = tm
 
 	sectionCmd := m.updateCurrentSection(msg)
@@ -1071,6 +1191,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sidebarCmd,
 		footerCmd,
 		sectionCmd,
+		monitorCmd,
 		prViewCmd,
 		issueSidebarCmd,
 	)
@@ -2068,6 +2189,23 @@ func (m *Model) doUpdateFooterAtInterval() tea.Cmd {
 	)
 }
 
+type animationTickMsg struct{}
+
+func (m *Model) doAnimationTick() tea.Cmd {
+	// Check if there are any active fullsend agents visible
+	if m.fullsendMonitor == nil || !m.fullsendMonitor.IsEnabled() {
+		return nil
+	}
+
+	// Send animation tick every 100ms for smooth spinner animation
+	return tea.Tick(
+		time.Millisecond*100,
+		func(t time.Time) tea.Msg {
+			return animationTickMsg{}
+		},
+	)
+}
+
 // promptConfirmationForNotificationPR shows a confirmation prompt for PR actions
 // when viewing a PR from a notification. This is separate from section-based
 // confirmation because the notification section doesn't know about PR actions.
@@ -2137,4 +2275,88 @@ func (m *Model) executeNotificationAction(action string) tea.Cmd {
 	}
 
 	return nil
+}
+
+// updateFullsendMonitorRepos extracts PR info from visible sections and updates the monitor
+// Returns true if there are any PRs or issues to monitor
+func (m *Model) updateFullsendMonitorRepos() bool {
+	if m.fullsendMonitor == nil || !m.fullsendMonitor.IsEnabled() {
+		log.Debug("updateFullsendMonitorRepos: monitor not enabled or nil")
+		return false
+	}
+
+	var prs []fullsendmonitor.PRInfo
+
+	log.Debug("updateFullsendMonitorRepos called",
+		"num_pr_sections", len(m.prs),
+		"num_issue_sections", len(m.issues))
+
+	// Extract PR info from visible PR sections
+	for i, s := range m.prs {
+		if prSection, ok := s.(*prssection.Model); ok {
+			log.Debug("Processing PR section", "section_id", i, "num_prs", len(prSection.Prs))
+			for _, pr := range prSection.Prs {
+				if pr.Primary != nil {
+					repoName := pr.Primary.Repository.NameWithOwner
+					owner := pr.Primary.Repository.Owner.Login
+
+					prs = append(prs, fullsendmonitor.PRInfo{
+						Owner:  owner,
+						Repo:   pr.Primary.Repository.Name,
+						Number: pr.Primary.Number,
+						Title:  pr.Primary.Title,
+					})
+					log.Debug("Found PR to monitor",
+						"repo", repoName,
+						"pr", pr.Primary.Number,
+						"title", pr.Primary.Title)
+				}
+			}
+		} else {
+			log.Debug("PR section type assertion failed", "section_id", i)
+		}
+	}
+
+	// Extract issue info from visible issue sections
+	var issues []fullsendmonitor.PRInfo // Reuse PRInfo structure
+	for i, s := range m.issues {
+		if issueSection, ok := s.(*issuessection.Model); ok {
+			log.Debug("Processing issue section", "section_id", i, "num_issues", len(issueSection.Issues))
+			for _, issue := range issueSection.Issues {
+				repoName := issue.GetRepoNameWithOwner()
+				owner, repo := issue.GetRepoNameAndOwner()
+
+				issues = append(issues, fullsendmonitor.PRInfo{
+					Owner:  owner,
+					Repo:   repo,
+					Number: issue.GetNumber(),
+					Title:  issue.GetTitle(),
+				})
+				log.Debug("Found issue to monitor",
+					"repo", repoName,
+					"issue", issue.GetNumber(),
+					"title", issue.GetTitle())
+			}
+		} else {
+			log.Debug("Issue section type assertion failed", "section_id", i)
+		}
+	}
+
+	log.Debug("updateFullsendMonitorRepos finished", "total_prs", len(prs), "total_issues", len(issues))
+
+	if len(prs) > 0 {
+		log.Debug("Updating fullsend monitor with visible PRs", "count", len(prs))
+		m.fullsendMonitor.SetVisiblePRs(prs)
+	} else {
+		log.Debug("No PRs found to monitor")
+	}
+
+	if len(issues) > 0 {
+		log.Debug("Updating fullsend monitor with visible issues", "count", len(issues))
+		m.fullsendMonitor.SetVisibleIssues(issues)
+	} else {
+		log.Debug("No issues found to monitor")
+	}
+
+	return len(prs) > 0 || len(issues) > 0
 }

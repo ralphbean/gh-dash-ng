@@ -25,6 +25,8 @@ import (
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/keys"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/markdown"
 	"github.com/dlvhdr/gh-dash/v4/internal/utils"
+
+	"github.com/dlvhdr/gh-dash/v4/internal/config"
 )
 
 var (
@@ -181,6 +183,12 @@ func (m *Model) viewHeader() string {
 	header.WriteString("\n")
 	header.WriteString(m.renderLastUpdate())
 	header.WriteString("\n\n")
+
+	fullsendStatus := m.renderFullsendStatus()
+	if fullsendStatus != "" {
+		header.WriteString(fullsendStatus)
+		header.WriteString("\n")
+	}
 	header.WriteString(lipgloss.NewStyle().Width(m.width).
 		Border(lipgloss.NormalBorder(), false, false, true, false).
 		BorderForeground(m.ctx.Theme.FaintBorder).
@@ -945,4 +953,47 @@ func (m *Model) repoRef() cmpcontroller.RepoRef {
 
 func (m *Model) hasData() bool {
 	return m.pr != nil && m.pr.Data != nil
+}
+
+
+func (m *Model) renderFullsendStatus() string {
+	// Check if fullsend integration is enabled
+	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) {
+		return ""
+	}
+
+	if !m.hasData() {
+		return ""
+	}
+
+	// Get fullsend status from store
+	owner, repoName := m.pr.Data.Primary.GetRepoNameAndOwner()
+	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, m.pr.Data.Primary.GetNumber())
+
+	// Check if there are active agents
+	if len(fullsendStatus.ActiveAgents) == 0 {
+		return ""
+	}
+
+	agents := fullsendStatus.ActiveAgents
+	
+	// Unicode spinner characters for animation
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
+	spinner := spinnerFrames[frameIndex]
+
+	// Build status text
+	var statusParts []string
+	for _, agent := range agents {
+		statusText := fmt.Sprintf("%s %s agent %s", spinner, agent.Type, agent.Status)
+		statusParts = append(statusParts, statusText)
+	}
+
+	fullStatus := strings.Join(statusParts, ", ")
+	
+	statusStyle := lipgloss.NewStyle().
+		Foreground(m.ctx.Theme.SecondaryText).
+		Italic(true)
+	
+	return " " + statusStyle.Render("fullsend: "+fullStatus)
 }

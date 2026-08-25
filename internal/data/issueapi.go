@@ -59,6 +59,20 @@ type IssueLabels struct {
 	Nodes []Label
 }
 
+// ActiveAgent represents a fullsend agent workflow currently processing an issue or PR
+type ActiveAgent struct {
+	Type       string    // Agent type: "code", "review", "triage", "fix", etc.
+	WorkflowID int64     // GitHub Actions workflow run ID
+	Status     string    // Workflow status: "queued", "in_progress"
+	StartedAt  time.Time // When the workflow started
+}
+
+// FullsendStatus tracks active fullsend agent activity for an issue or PR
+type FullsendStatus struct {
+	ActiveAgents []ActiveAgent // Currently active agent workflows
+	LastChecked  time.Time     // Last time we checked for workflow updates
+}
+
 func (data IssueData) GetAuthor(theme theme.Theme, showAuthorIcons bool) string {
 	author := data.Author.Login
 	if showAuthorIcons {

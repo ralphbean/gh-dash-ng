@@ -3,9 +3,11 @@ package issuerow
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/table"
@@ -30,6 +32,7 @@ func (issue *Issue) ToTableRow() table.Row {
 		issue.renderNumReactions(),
 		issue.renderUpdateAt(),
 		issue.renderCreatedAt(),
+		issue.renderFullsendStatus(),
 	}
 }
 
@@ -103,4 +106,58 @@ func (issue *Issue) renderNumComments() string {
 
 func (issue *Issue) renderNumReactions() string {
 	return issue.getTextStyle().Render(fmt.Sprintf("%d", issue.Data.Reactions.TotalCount))
+}
+
+// Unicode spinner characters for animation
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+func (issue *Issue) renderAgentIndicator(agent data.ActiveAgent) string {
+	// Get spinner frame based on current time (time-based animation)
+	// Update approximately every 100ms
+	frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
+	spinner := spinnerFrames[frameIndex]
+
+	// Get agent type abbreviation (first letter)
+	abbreviation := ""
+	if len(agent.Type) > 0 {
+		abbreviation = string(agent.Type[0])
+	}
+
+	// Format: spinner + abbreviation (e.g., "⠋ C" for Code agent)
+	return fmt.Sprintf("%s %s", spinner, abbreviation)
+}
+
+func (issue *Issue) renderFullsendStatus() string {
+	// Check if fullsend integration is enabled
+	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) {
+		return ""
+	}
+
+	// Get fullsend status from store
+	owner, repoName := issue.Data.GetRepoNameAndOwner()
+	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, issue.Data.GetNumber())
+	
+	// Check if there are active agents
+	if len(fullsendStatus.ActiveAgents) == 0 {
+		return ""
+	}
+
+	agents := fullsendStatus.ActiveAgents
+
+	// Handle multiple concurrent agents
+	if len(agents) > 2 {
+		// Show spinner + count for >2 agents (e.g., "⠋ 9")
+		frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
+		spinner := spinnerFrames[frameIndex]
+		return issue.getTextStyle().Render(fmt.Sprintf("%s %d", spinner, len(agents)))
+	}
+
+	// Build indicator for 1-2 agents
+	var indicators []string
+	for _, agent := range agents {
+		indicator := issue.renderAgentIndicator(agent)
+		indicators = append(indicators, indicator)
+	}
+
+	return issue.getTextStyle().Render(strings.Join(indicators, " "))
 }

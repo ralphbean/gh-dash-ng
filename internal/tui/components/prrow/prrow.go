@@ -3,10 +3,13 @@ package prrow
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
+	"charm.land/log/v2"
 	checks "github.com/dlvhdr/x/gh-checks"
+	"github.com/dlvhdr/gh-dash/v4/internal/config"
 
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/git"
@@ -457,6 +460,7 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 			pr.RenderLines(isSelected),
 			pr.renderUpdateAt(),
 			pr.renderCreatedAt(),
+			pr.renderFullsendStatus(),
 		}
 	}
 
@@ -476,5 +480,71 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 		pr.RenderLines(isSelected),
 		pr.renderUpdateAt(),
 		pr.renderCreatedAt(),
+		pr.renderFullsendStatus(),
 	}
+}
+
+// Unicode spinner characters for animation (same as issuerow)
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+func (pr *PullRequest) renderAgentIndicator(agent data.ActiveAgent) string {
+	// Get spinner frame based on current time (time-based animation)
+	// Update approximately every 100ms
+	frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
+	spinner := spinnerFrames[frameIndex]
+
+	// Get agent type abbreviation (first letter)
+	abbreviation := ""
+	if len(agent.Type) > 0 {
+		abbreviation = string(agent.Type[0])
+	}
+
+	// Format: spinner + abbreviation (e.g., "⠋ C" for Code agent)
+	return fmt.Sprintf("%s %s", spinner, abbreviation)
+}
+
+func (pr *PullRequest) renderFullsendStatus() string {
+	// Check if fullsend integration is enabled
+	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) {
+		return ""
+	}
+
+	// Check if we have PR data
+	if pr.Data == nil || pr.Data.Primary == nil {
+		return ""
+	}
+
+	// Get fullsend status from store
+	owner, repoName := pr.Data.Primary.GetRepoNameAndOwner()
+	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, pr.Data.Primary.GetNumber())
+
+	log.Debug("renderFullsendStatus",
+		"owner", owner,
+		"repo", repoName,
+		"number", pr.Data.Primary.GetNumber(),
+		"active_agents", len(fullsendStatus.ActiveAgents))
+
+	// Check if there are active agents
+	if len(fullsendStatus.ActiveAgents) == 0 {
+		return ""
+	}
+
+	agents := fullsendStatus.ActiveAgents
+
+	// Handle multiple concurrent agents
+	if len(agents) > 2 {
+		// Show spinner + count for >2 agents (e.g., "⠋ 9")
+		frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
+		spinner := spinnerFrames[frameIndex]
+		return pr.getTextStyle().Render(fmt.Sprintf("%s %d", spinner, len(agents)))
+	}
+
+	// Build indicator for 1-2 agents
+	var indicators []string
+	for _, agent := range agents {
+		indicator := pr.renderAgentIndicator(agent)
+		indicators = append(indicators, indicator)
+	}
+
+	return pr.getTextStyle().Render(strings.Join(indicators, " "))
 }

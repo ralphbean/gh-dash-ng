@@ -80,6 +80,7 @@ type PullRequestData struct {
 	Additions         int
 	Deletions         int
 	HeadRefName       string
+	HeadRefOid        string // SHA of the head commit
 	BaseRefName       string
 	HeadRepository    struct {
 		Name string

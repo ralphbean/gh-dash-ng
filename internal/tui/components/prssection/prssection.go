@@ -402,6 +402,11 @@ func GetSectionColumns(
 				Width:  createdAtLayout.Width,
 				Hidden: createdAtLayout.Hidden,
 			},
+		{
+			Title:  "🤖",
+			Width:  utils.IntPtr(6),
+			Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
+		},
 		}
 	}
 
@@ -486,6 +491,11 @@ func GetSectionColumns(
 			Title:  "󱡢",
 			Width:  createdAtLayout.Width,
 			Hidden: createdAtLayout.Hidden,
+		},
+		{
+			Title:  "🤖",
+			Width:  utils.IntPtr(6),
+			Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
 		},
 	}
 }

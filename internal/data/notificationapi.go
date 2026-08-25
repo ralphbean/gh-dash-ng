@@ -344,12 +344,17 @@ type CommentResponse struct {
 
 // WorkflowRun represents a GitHub Actions workflow run
 type WorkflowRun struct {
-	Id         int64     `json:"id"`
-	Name       string    `json:"name"`
-	HtmlUrl    string    `json:"html_url"`
-	HeadBranch string    `json:"head_branch"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	Conclusion string    `json:"conclusion"` // success, failure, cancelled, etc.
+	Id           int64     `json:"id"`
+	Name         string    `json:"name"`
+	HtmlUrl      string    `json:"html_url"`
+	HeadBranch   string    `json:"head_branch"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	CreatedAt    time.Time `json:"created_at"`
+	Conclusion   string    `json:"conclusion"`    // success, failure, cancelled, etc.
+	Status       string    `json:"status"`        // queued, in_progress, completed
+	WorkflowId   int64     `json:"workflow_id"`   // ID of the workflow definition
+	HeadSha      string    `json:"head_sha"`      // Commit SHA
+	DisplayTitle string    `json:"display_title"` // Display title for the run
 }
 
 // WorkflowRunsResponse represents the response from the workflow runs API

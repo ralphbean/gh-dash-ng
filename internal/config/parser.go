@@ -192,16 +192,17 @@ type SnoozePreset struct {
 }
 
 type Defaults struct {
-	Preview                PreviewConfig  `yaml:"preview"`
-	PrsLimit               int            `yaml:"prsLimit"`
-	PrApproveComment       string         `yaml:"prApproveComment,omitempty"`
-	IssuesLimit            int            `yaml:"issuesLimit"`
-	NotificationsLimit     int            `yaml:"notificationsLimit"`
-	View                   ViewType       `yaml:"view"`
-	Layout                 LayoutConfig   `yaml:"layout,omitempty"`
-	RefetchIntervalMinutes int            `yaml:"refetchIntervalMinutes,omitempty"`
-	DateFormat             string         `yaml:"dateFormat,omitempty"`
-	SnoozePresets          []SnoozePreset `yaml:"snoozePresets,omitempty"`
+	Preview                  PreviewConfig  `yaml:"preview"`
+	PrsLimit                 int            `yaml:"prsLimit"`
+	PrApproveComment         string         `yaml:"prApproveComment,omitempty"`
+	IssuesLimit              int            `yaml:"issuesLimit"`
+	NotificationsLimit       int            `yaml:"notificationsLimit"`
+	View                     ViewType       `yaml:"view"`
+	Layout                   LayoutConfig   `yaml:"layout,omitempty"`
+	RefetchIntervalMinutes   int            `yaml:"refetchIntervalMinutes,omitempty"`
+	AgentPollIntervalMinutes int            `yaml:"agentPollIntervalMinutes,omitempty"`
+	DateFormat               string         `yaml:"dateFormat,omitempty"`
+	SnoozePresets            []SnoozePreset `yaml:"snoozePresets,omitempty"`
 }
 
 type RepoConfig struct {
@@ -361,12 +362,13 @@ func (parser ConfigParser) getDefaultConfig() Config {
 				Height:   0.60,
 				Position: "auto",
 			},
-			PrsLimit:               20,
-			PrApproveComment:       "LGTM",
-			IssuesLimit:            20,
-			NotificationsLimit:     20,
-			View:                   PRsView,
-			RefetchIntervalMinutes: 30,
+			PrsLimit:                 20,
+			PrApproveComment:         "LGTM",
+			IssuesLimit:              20,
+			NotificationsLimit:       20,
+			View:                     PRsView,
+			RefetchIntervalMinutes:   30,
+			AgentPollIntervalMinutes: 1,
 			SnoozePresets: []SnoozePreset{
 				{Label: "10m", After: "10m"},
 				{Label: "1h", After: "1h"},
