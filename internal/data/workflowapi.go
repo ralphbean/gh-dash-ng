@@ -20,14 +20,34 @@ type RateLimitInfo struct {
 }
 
 // QueryWorkflowRuns fetches workflow runs for a repository
+// Only fetches active runs (in_progress, queued) to minimize API usage
 // Uses the GitHub REST API: GET /repos/{owner}/{repo}/actions/runs
 func QueryWorkflowRuns(owner, repo string, perPage int) ([]WorkflowRun, *RateLimitInfo, error) {
+	// Fetch in_progress and queued runs separately since GitHub API doesn't support multiple status values
+	allRuns := []WorkflowRun{}
+	var lastRateLimit *RateLimitInfo
+
+	for _, status := range []string{"in_progress", "queued"} {
+		runs, rateLimit, err := queryWorkflowRunsByStatus(owner, repo, status, perPage)
+		if err != nil {
+			return nil, rateLimit, err
+		}
+		allRuns = append(allRuns, runs...)
+		lastRateLimit = rateLimit
+	}
+
+	log.Debug("Fetched active workflow runs", "repo", fmt.Sprintf("%s/%s", owner, repo), "count", len(allRuns))
+	return allRuns, lastRateLimit, nil
+}
+
+// queryWorkflowRunsByStatus fetches workflow runs filtered by status
+func queryWorkflowRunsByStatus(owner, repo, status string, perPage int) ([]WorkflowRun, *RateLimitInfo, error) {
 	client, err := gh.DefaultRESTClient()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
 	}
 
-	path := fmt.Sprintf("repos/%s/%s/actions/runs?per_page=%d", owner, repo, perPage)
+	path := fmt.Sprintf("repos/%s/%s/actions/runs?status=%s&per_page=%d", owner, repo, status, perPage)
 
 	log.Debug("GitHub REST API call", "method", "GET", "path", path)
 	resp, err := client.Request(http.MethodGet, path, nil)
@@ -52,7 +72,6 @@ func QueryWorkflowRuns(owner, repo string, perPage int) ([]WorkflowRun, *RateLim
 		return nil, rateLimit, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	log.Debug("Fetched workflow runs", "repo", fmt.Sprintf("%s/%s", owner, repo), "count", len(result.WorkflowRuns))
 	return result.WorkflowRuns, rateLimit, nil
 }
 

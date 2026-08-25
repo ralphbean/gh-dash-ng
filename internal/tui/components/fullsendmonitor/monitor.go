@@ -121,7 +121,9 @@ func (m *Monitor) Update(msg tea.Msg) tea.Cmd {
 // scheduleNextTick returns a command that sends a tick message after the appropriate interval
 func (m *Monitor) scheduleNextTick() tea.Cmd {
 	interval := m.calculatePollInterval()
+	log.Debug("Scheduling next poll tick", "interval", interval, "interval_seconds", interval.Seconds())
 	return tea.Tick(interval, func(t time.Time) tea.Msg {
+		log.Debug("Poll tick fired", "timestamp", t)
 		return pollTickMsg{timestamp: t}
 	})
 }
@@ -130,8 +132,10 @@ func (m *Monitor) scheduleNextTick() tea.Cmd {
 func (m *Monitor) calculatePollInterval() time.Duration {
 	if m.pollInterval == 0 {
 		// Default to 5 minutes if not configured
+		log.Debug("Poll interval not configured, using default", "interval", "5m")
 		return 5 * time.Minute
 	}
+	log.Debug("Using configured poll interval", "interval", m.pollInterval)
 	return m.pollInterval
 }
 
