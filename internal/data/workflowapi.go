@@ -29,14 +29,18 @@ func QueryWorkflowRuns(owner, repo string, perPage int) ([]WorkflowRun, *RateLim
 
 	path := fmt.Sprintf("repos/%s/%s/actions/runs?per_page=%d", owner, repo, perPage)
 
+	log.Debug("GitHub REST API call", "method", "GET", "path", path)
 	resp, err := client.Request(http.MethodGet, path, nil)
 	if err != nil {
+		log.Error("GitHub REST API call failed", "method", "GET", "path", path, "error", err)
 		return nil, nil, fmt.Errorf("failed to query workflow runs: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Parse rate limit headers
 	rateLimit := parseRateLimitHeaders(resp.Header)
+	log.Debug("GitHub REST API response", "method", "GET", "path", path, "status", resp.StatusCode,
+		"rate_remaining", rateLimit.Remaining, "rate_limit", rateLimit.Limit)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -63,13 +67,17 @@ func QueryWorkflowRunsForPR(owner, repo string, prNumber int, headSHA string) ([
 	// Query workflow runs filtered by the PR's head SHA
 	path := fmt.Sprintf("repos/%s/%s/actions/runs?head_sha=%s&per_page=50", owner, repo, headSHA)
 
+	log.Debug("GitHub REST API call", "method", "GET", "path", path)
 	resp, err := client.Request(http.MethodGet, path, nil)
 	if err != nil {
+		log.Error("GitHub REST API call failed", "method", "GET", "path", path, "error", err)
 		return nil, nil, fmt.Errorf("failed to query workflow runs for PR: %w", err)
 	}
 	defer resp.Body.Close()
 
 	rateLimit := parseRateLimitHeaders(resp.Header)
+	log.Debug("GitHub REST API response", "method", "GET", "path", path, "status", resp.StatusCode,
+		"rate_remaining", rateLimit.Remaining, "rate_limit", rateLimit.Limit)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -94,13 +102,17 @@ func GetWorkflowRunStatus(owner, repo string, runID int64) (*WorkflowRun, *RateL
 
 	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d", owner, repo, runID)
 
+	log.Debug("GitHub REST API call", "method", "GET", "path", path)
 	resp, err := client.Request(http.MethodGet, path, nil)
 	if err != nil {
+		log.Error("GitHub REST API call failed", "method", "GET", "path", path, "error", err)
 		return nil, nil, fmt.Errorf("failed to get workflow run status: %w", err)
 	}
 	defer resp.Body.Close()
 
 	rateLimit := parseRateLimitHeaders(resp.Header)
+	log.Debug("GitHub REST API response", "method", "GET", "path", path, "status", resp.StatusCode,
+		"rate_remaining", rateLimit.Remaining, "rate_limit", rateLimit.Limit)
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, rateLimit, fmt.Errorf("workflow run %d not found", runID)

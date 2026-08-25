@@ -61,13 +61,17 @@ func GetWorkflowJobs(owner, repo string, runID int64) ([]WorkflowJob, *RateLimit
 
 	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d/jobs", owner, repo, runID)
 
+	log.Debug("GitHub REST API call", "method", "GET", "path", path)
 	resp, err := client.Request(http.MethodGet, path, nil)
 	if err != nil {
+		log.Error("GitHub REST API call failed", "method", "GET", "path", path, "error", err)
 		return nil, nil, fmt.Errorf("failed to query workflow jobs: %w", err)
 	}
 	defer resp.Body.Close()
 
 	rateLimit := parseRateLimitHeaders(resp.Header)
+	log.Debug("GitHub REST API response", "method", "GET", "path", path, "status", resp.StatusCode,
+		"rate_remaining", rateLimit.Remaining, "rate_limit", rateLimit.Limit)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
