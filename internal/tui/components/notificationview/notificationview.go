@@ -94,7 +94,11 @@ func (m *Model) SetPendingPRAction(action string) string {
 	actionDisplay := action
 	switch action {
 	case "ready":
-		actionDisplay = "mark as ready"
+		if m.subjectPR.Primary != nil && !m.subjectPR.Primary.IsDraft {
+			actionDisplay = "convert to draft"
+		} else {
+			actionDisplay = "mark as ready"
+		}
 	case "approveWorkflows":
 		actionDisplay = "approve all workflows for"
 	}
