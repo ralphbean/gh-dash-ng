@@ -108,7 +108,8 @@ func (m *Monitor) Update(msg tea.Msg) tea.Cmd {
 
 	switch msg := msg.(type) {
 	case pollTickMsg:
-		return m.pollVisibleRepos()
+		// Automatic tick - poll and schedule next tick
+		return m.pollVisibleRepos(true)
 	case TriggerDelayedPollMsg:
 		return m.scheduleDelayedPoll(msg)
 	case DelayedPollTickMsg:
@@ -216,7 +217,8 @@ func (m *Monitor) SetVisibleIssues(issues []PRInfo) { // Reuse PRInfo structure
 
 // pollVisibleRepos queries workflow status for all visible repositories
 // Returns a batch command that will fetch status for each repo
-func (m *Monitor) pollVisibleRepos() tea.Cmd {
+// scheduleNext indicates whether to schedule the next automatic tick (true for periodic ticks, false for manual triggers)
+func (m *Monitor) pollVisibleRepos(scheduleNext bool) tea.Cmd {
 	if !m.enabled {
 		return nil
 	}
@@ -229,7 +231,7 @@ func (m *Monitor) pollVisibleRepos() tea.Cmd {
 		log.Debug("Fullsend monitor: first tick (lazy load complete)")
 	}
 
-	log.Debug("pollVisibleRepos called", "num_repos", len(m.visibleRepos))
+	log.Debug("pollVisibleRepos called", "num_repos", len(m.visibleRepos), "schedule_next", scheduleNext)
 
 	// Create a snapshot of visible repos to poll
 	reposToList := make([]struct {
@@ -245,8 +247,11 @@ func (m *Monitor) pollVisibleRepos() tea.Cmd {
 
 	numRepos := len(reposToList)
 	if numRepos == 0 {
-		// Schedule next tick even if no repos
-		return m.scheduleNextTick()
+		// Schedule next tick even if no repos (but only if requested)
+		if scheduleNext {
+			return m.scheduleNextTick()
+		}
+		return nil
 	}
 
 	// Send poll started message, then execute poll, then send completed message
@@ -281,8 +286,12 @@ func (m *Monitor) pollVisibleRepos() tea.Cmd {
 		}
 	}
 
-	// Batch: start message, then poll (which will send completed), then schedule next tick
-	return tea.Batch(startCmd, pollCmd, m.scheduleNextTick())
+	// Batch poll commands, and optionally schedule next tick
+	cmds := []tea.Cmd{startCmd, pollCmd}
+	if scheduleNext {
+		cmds = append(cmds, m.scheduleNextTick())
+	}
+	return tea.Batch(cmds...)
 }
 
 // GetCache returns the monitor's cache (for integration with other components)
@@ -301,13 +310,14 @@ func (m *Monitor) SetPollInterval(interval time.Duration) {
 }
 
 // TriggerPoll triggers an immediate poll of all visible repos
+// Does not schedule the next automatic tick (that's handled by the periodic timer)
 func (m *Monitor) TriggerPoll() tea.Cmd {
 	if !m.enabled {
 		log.Debug("TriggerPoll: monitor not enabled")
 		return nil
 	}
 	log.Debug("TriggerPoll: calling pollVisibleRepos", "num_repos", len(m.visibleRepos))
-	return m.pollVisibleRepos()
+	return m.pollVisibleRepos(false) // Don't schedule next tick for manual polls
 }
 
 // pollRepoSync queries workflow status for a single repository and matches to PRs by head_sha
