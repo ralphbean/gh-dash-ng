@@ -630,3 +630,187 @@ func TestRenderLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderMergeStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *PullRequest
+		wantIcon string
+	}{
+		{
+			name:     "nil Primary returns empty string",
+			pr:       &PullRequest{Data: &Data{Primary: nil}},
+			wantIcon: "",
+		},
+		{
+			name: "CONFLICTING mergeable renders failure icon",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable: "CONFLICTING",
+					},
+				},
+			},
+			wantIcon: constants.FailureIcon,
+		},
+		{
+			name: "CLEAN merge state renders success icon",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable:        "MERGEABLE",
+						MergeStateStatus: "CLEAN",
+					},
+				},
+			},
+			wantIcon: constants.SuccessIcon,
+		},
+		{
+			name: "BLOCKED merge state renders blocked icon",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable:        "MERGEABLE",
+						MergeStateStatus: "BLOCKED",
+					},
+				},
+			},
+			wantIcon: constants.BlockedIcon,
+		},
+		{
+			name: "BEHIND merge state renders behind icon",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable:        "MERGEABLE",
+						MergeStateStatus: "BEHIND",
+					},
+				},
+			},
+			wantIcon: constants.BehindIcon,
+		},
+		{
+			name: "CONFLICTING takes precedence over CLEAN merge state",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable:        "CONFLICTING",
+						MergeStateStatus: "CLEAN",
+					},
+				},
+			},
+			wantIcon: constants.FailureIcon,
+		},
+		{
+			name: "unknown merge state renders empty string",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable:        "UNKNOWN",
+						MergeStateStatus: "UNKNOWN",
+					},
+				},
+			},
+			wantIcon: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.pr.Ctx = newTestContext(t)
+			result := tt.pr.renderMergeStatus()
+			if tt.wantIcon == "" {
+				require.Equal(t, "", result)
+			} else {
+				require.Contains(t, result, tt.wantIcon)
+			}
+		})
+	}
+}
+
+func TestRenderMergeStateStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *PullRequest
+		expected string
+	}{
+		{
+			name: "CONFLICTING renders conflict text",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable: "CONFLICTING",
+					},
+				},
+			},
+			expected: "Conflicting",
+		},
+		{
+			name: "CLEAN renders up-to-date text",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						MergeStateStatus: "CLEAN",
+					},
+				},
+			},
+			expected: "Up-to-date",
+		},
+		{
+			name: "BLOCKED renders blocked text",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						MergeStateStatus: "BLOCKED",
+					},
+				},
+			},
+			expected: "Blocked",
+		},
+		{
+			name: "BEHIND renders behind text",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						MergeStateStatus: "BEHIND",
+					},
+				},
+			},
+			expected: "Behind",
+		},
+		{
+			name: "CONFLICTING takes precedence over merge state",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Mergeable:        "CONFLICTING",
+						MergeStateStatus: "CLEAN",
+					},
+				},
+			},
+			expected: "Conflicting",
+		},
+		{
+			name: "unknown state renders empty",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						MergeStateStatus: "UNKNOWN",
+					},
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.pr.RenderMergeStateStatus()
+			if tt.expected == "" {
+				require.Equal(t, "", result)
+			} else {
+				require.Contains(t, result, tt.expected)
+			}
+		})
+	}
+}

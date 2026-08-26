@@ -324,6 +324,10 @@ func GetSectionColumns(
 	labelsLayout := config.MergeColumnConfigs(dLayout.Labels, sLayout.Labels)
 	linesLayout := config.MergeColumnConfigs(dLayout.Lines, sLayout.Lines)
 	starLayout := config.MergeColumnConfigs(dLayout.Star, sLayout.Star)
+	mergeStatusLayout := config.MergeColumnConfigs(
+		dLayout.MergeStatus,
+		sLayout.MergeStatus,
+	)
 
 	if !ctx.Config.Theme.Ui.Table.Compact {
 		return []table.Column{
@@ -377,6 +381,11 @@ func GetSectionColumns(
 				Width:  &ctx.Styles.PrSection.CiCellWidth,
 				Grow:   new(bool),
 				Hidden: ciLayout.Hidden,
+			},
+			{
+				Title:  "",
+				Width:  utils.IntPtr(4),
+				Hidden: mergeStatusLayout.Hidden,
 			},
 			{
 				Title:  "",
@@ -457,6 +466,11 @@ func GetSectionColumns(
 			Width:  &ctx.Styles.PrSection.CiCellWidth,
 			Grow:   new(bool),
 			Hidden: ciLayout.Hidden,
+		},
+		{
+			Title:  "",
+			Width:  utils.IntPtr(4),
+			Hidden: mergeStatusLayout.Hidden,
 		},
 		{
 			Title:  "",
