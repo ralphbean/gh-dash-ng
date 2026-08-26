@@ -25,7 +25,8 @@ const SectionType = "pr"
 
 type Model struct {
 	section.BaseModel
-	Prs []prrow.Data
+	Prs           []prrow.Data
+	ShowMergedFor string
 }
 
 func NewModel(
@@ -50,6 +51,7 @@ func NewModel(
 		},
 	)
 	m.Prs = []prrow.Data{}
+	m.ShowMergedFor = cfg.ShowMergedFor
 
 	return m
 }
@@ -565,6 +567,7 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 	startCmd := m.Ctx.StartTask(task)
 	cmds = append(cmds, startCmd)
 
+	showMergedFor := m.ShowMergedFor
 	fetchCmd := func() tea.Msg {
 		limit := m.Config.Limit
 		if limit == nil {
@@ -581,8 +584,36 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			}
 		}
 
-		prs := make([]prrow.Data, 0)
-		for _, pr := range res.Prs {
+		allPRs := res.Prs
+
+		// When showMergedFor is configured, run a second query
+		// for recently merged PRs and merge the results.
+		if showMergedFor != "" {
+			duration, parseErr := utils.ParseDuration(showMergedFor)
+			if parseErr == nil && duration > 0 {
+				cutoff := time.Now().Add(-duration)
+				mergedQuery := data.MakeMergedPRQuery(
+					m.GetFilters(), cutoff,
+				)
+				mergedRes, mergedErr := data.FetchPullRequests(
+					mergedQuery, *limit, nil,
+				)
+				if mergedErr != nil {
+					log.Warn(
+						"Failed to fetch merged PRs",
+						"err", mergedErr,
+					)
+				} else {
+					allPRs = data.MergePullRequestResults(
+						res.Prs, mergedRes.Prs,
+					)
+				}
+			}
+		}
+
+		prs := make([]prrow.Data, 0, len(allPRs))
+		for i := range allPRs {
+			pr := allPRs[i]
 			prs = append(prs, prrow.Data{Primary: &pr})
 		}
 		return constants.TaskFinishedMsg{

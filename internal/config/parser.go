@@ -87,11 +87,12 @@ type SectionConfig struct {
 }
 
 type PrsSectionConfig struct {
-	Title   string
-	Filters string
-	Limit   *int            `yaml:"limit,omitempty"`
-	Layout  PrsLayoutConfig `yaml:"layout,omitempty"`
-	Type    *ViewType       `yaml:"type,omitempty"`
+	Title         string
+	Filters       string
+	Limit         *int            `yaml:"limit,omitempty"`
+	Layout        PrsLayoutConfig `yaml:"layout,omitempty"`
+	Type          *ViewType       `yaml:"type,omitempty"`
+	ShowMergedFor string          `yaml:"showMergedFor,omitempty"`
 }
 
 type IssuesSectionConfig struct {

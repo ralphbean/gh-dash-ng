@@ -2,6 +2,7 @@ package data
 
 import (
 	"testing"
+	"time"
 
 	gh "github.com/cli/go-gh/v2/pkg/api"
 	"github.com/stretchr/testify/require"
@@ -274,5 +275,98 @@ func TestSetClient(t *testing.T) {
 		SetClient(nil)
 		require.Nil(t, client)
 		require.True(t, IsEnrichmentCacheCleared())
+	})
+}
+
+func TestMakeMergedPRQuery(t *testing.T) {
+	cutoff := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name    string
+		filters string
+		want    string
+	}{
+		{
+			name:    "replaces is:open with is:merged and adds date",
+			filters: "is:open author:@me",
+			want:    "author:@me is:merged merged:>=2026-08-19",
+		},
+		{
+			name:    "strips existing is:closed",
+			filters: "is:closed author:@me",
+			want:    "author:@me is:merged merged:>=2026-08-19",
+		},
+		{
+			name:    "strips existing merged: qualifier",
+			filters: "is:open merged:>=2020-01-01 author:@me",
+			want:    "author:@me is:merged merged:>=2026-08-19",
+		},
+		{
+			name:    "handles no is: qualifier",
+			filters: "author:@me review-requested:@me",
+			want:    "author:@me review-requested:@me is:merged merged:>=2026-08-19",
+		},
+		{
+			name:    "case insensitive is:Open",
+			filters: "Is:Open author:@me",
+			want:    "author:@me is:merged merged:>=2026-08-19",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MakeMergedPRQuery(tt.filters, cutoff)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMergePullRequestResults(t *testing.T) {
+	t.Run("no duplicates", func(t *testing.T) {
+		primary := []PullRequestData{
+			{Number: 1, Title: "PR 1"},
+			{Number: 2, Title: "PR 2"},
+		}
+		merged := []PullRequestData{
+			{Number: 3, Title: "PR 3"},
+		}
+		result := MergePullRequestResults(primary, merged)
+		require.Len(t, result, 3)
+	})
+
+	t.Run("duplicates kept from primary", func(t *testing.T) {
+		primary := []PullRequestData{
+			{Number: 1, Title: "Primary PR 1"},
+		}
+		merged := []PullRequestData{
+			{Number: 1, Title: "Merged PR 1"},
+			{Number: 2, Title: "Merged PR 2"},
+		}
+		result := MergePullRequestResults(primary, merged)
+		require.Len(t, result, 2)
+		require.Equal(t, "Primary PR 1", result[0].Title)
+		require.Equal(t, "Merged PR 2", result[1].Title)
+	})
+
+	t.Run("empty primary", func(t *testing.T) {
+		merged := []PullRequestData{
+			{Number: 1, Title: "PR 1"},
+		}
+		result := MergePullRequestResults(nil, merged)
+		require.Len(t, result, 1)
+		require.Equal(t, "PR 1", result[0].Title)
+	})
+
+	t.Run("empty merged", func(t *testing.T) {
+		primary := []PullRequestData{
+			{Number: 1, Title: "PR 1"},
+		}
+		result := MergePullRequestResults(primary, nil)
+		require.Len(t, result, 1)
+	})
+
+	t.Run("both empty", func(t *testing.T) {
+		result := MergePullRequestResults(nil, nil)
+		require.Empty(t, result)
 	})
 }

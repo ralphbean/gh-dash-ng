@@ -295,6 +295,34 @@ func TestValidateColor(t *testing.T) {
 	}
 }
 
+func TestShowMergedFor_ParsedFromConfig(t *testing.T) {
+	dir, err := os.MkdirTemp("", "config-merged")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	configContent := `
+prSections:
+  - title: My PRs
+    filters: is:open author:@me
+    showMergedFor: 1w
+  - title: Reviews
+    filters: is:open review-requested:@me
+`
+	configPath := path.Join(dir, "config.yml")
+	err = os.WriteFile(configPath, []byte(configContent), 0o600)
+	require.NoError(t, err)
+
+	parsed, err := ParseConfig(Location{
+		ConfigFlag:       configPath,
+		SkipGlobalConfig: true,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, parsed.PRSections, 2)
+	require.Equal(t, "1w", parsed.PRSections[0].ShowMergedFor)
+	require.Equal(t, "", parsed.PRSections[1].ShowMergedFor)
+}
+
 func setupConfigEnvVar(t *testing.T) func() {
 	t.Helper()
 	cwd := Testwd(t)

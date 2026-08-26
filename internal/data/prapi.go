@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"charm.land/log/v2"
@@ -602,6 +603,45 @@ func (e EnrichedPullRequestData) ToPullRequestData() PullRequestData {
 
 func makePullRequestsQuery(query string) string {
 	return fmt.Sprintf("is:pr archived:false %s sort:updated", query)
+}
+
+// MakeMergedPRQuery transforms a section's filter string so that it fetches
+// recently merged PRs instead of the section's default result set. It strips
+// any existing "is:open" or "is:closed" qualifier and adds "is:merged" with a
+// "merged:>=<date>" qualifier computed from the given cutoff time.
+func MakeMergedPRQuery(baseFilters string, mergedAfter time.Time) string {
+	var tokens []string
+	for _, token := range strings.Fields(baseFilters) {
+		lower := strings.ToLower(token)
+		if lower == "is:open" || lower == "is:closed" || lower == "is:merged" ||
+			strings.HasPrefix(lower, "merged:") {
+			continue
+		}
+		tokens = append(tokens, token)
+	}
+	dateStr := mergedAfter.Format("2006-01-02")
+	tokens = append(tokens, "is:merged", "merged:>="+dateStr)
+	return strings.Join(tokens, " ")
+}
+
+// MergePullRequestResults combines two sets of PRs, deduplicating by PR
+// number. When duplicates are found, the entry from the primary set is kept.
+func MergePullRequestResults(
+	primary, merged []PullRequestData,
+) []PullRequestData {
+	seen := make(map[int]struct{}, len(primary))
+	for _, pr := range primary {
+		seen[pr.Number] = struct{}{}
+	}
+	combined := make([]PullRequestData, len(primary))
+	copy(combined, primary)
+	for _, pr := range merged {
+		if _, exists := seen[pr.Number]; !exists {
+			combined = append(combined, pr)
+			seen[pr.Number] = struct{}{}
+		}
+	}
+	return combined
 }
 
 type PullRequestsResponse struct {
