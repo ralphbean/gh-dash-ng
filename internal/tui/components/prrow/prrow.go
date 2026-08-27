@@ -399,6 +399,9 @@ func (pr *PullRequest) RenderState() string {
 }
 
 func (pr *PullRequest) RenderMergeStateStatus() string {
+	if pr.Data.Primary.Mergeable == "CONFLICTING" {
+		return constants.FailureIcon + " Conflicting"
+	}
 	switch pr.Data.Primary.MergeStateStatus {
 	case "CLEAN":
 		return constants.SuccessIcon + " Up-to-date"
@@ -406,6 +409,32 @@ func (pr *PullRequest) RenderMergeStateStatus() string {
 		return constants.BlockedIcon + " Blocked"
 	case "BEHIND":
 		return constants.BehindIcon + " Behind"
+	default:
+		return ""
+	}
+}
+
+func (pr *PullRequest) renderMergeStatus() string {
+	if pr.Data.Primary == nil {
+		return ""
+	}
+	mergeStyle := pr.getTextStyle()
+
+	if pr.Data.Primary.Mergeable == "CONFLICTING" {
+		return mergeStyle.Foreground(pr.Ctx.Theme.ErrorText).
+			Render(constants.FailureIcon)
+	}
+
+	switch pr.Data.Primary.MergeStateStatus {
+	case "CLEAN":
+		return mergeStyle.Foreground(pr.Ctx.Theme.SuccessText).
+			Render(constants.SuccessIcon)
+	case "BLOCKED":
+		return mergeStyle.Foreground(pr.Ctx.Theme.ErrorText).
+			Render(constants.BlockedIcon)
+	case "BEHIND":
+		return mergeStyle.Foreground(pr.Ctx.Theme.WarningText).
+			Render(constants.BehindIcon)
 	default:
 		return ""
 	}
@@ -424,6 +453,7 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 			pr.renderReviewStatusHuman(),
 			pr.renderReviewStatusBot(),
 			pr.renderCiStatus(),
+			pr.renderMergeStatus(),
 			pr.RenderLines(isSelected),
 			pr.renderUpdateAt(),
 			pr.renderCreatedAt(),
@@ -442,6 +472,7 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 		pr.renderReviewStatusHuman(),
 		pr.renderReviewStatusBot(),
 		pr.renderCiStatus(),
+		pr.renderMergeStatus(),
 		pr.RenderLines(isSelected),
 		pr.renderUpdateAt(),
 		pr.renderCreatedAt(),

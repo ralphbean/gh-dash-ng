@@ -165,6 +165,7 @@ type PrsLayoutConfig struct {
 	Lines           ColumnConfig `yaml:"lines,omitempty"`
 	NumComments     ColumnConfig `yaml:"numComments,omitempty"`
 	Star            ColumnConfig `yaml:"star,omitempty"`
+	MergeStatus     ColumnConfig `yaml:"mergeStatus,omitempty"`
 }
 
 type IssuesLayoutConfig struct {
