@@ -104,3 +104,10 @@
 - [x] 12.3 Document cache TTL values and rationale
 - [ ] 12.4 Add troubleshooting guide for common integration issues
 - [ ] 12.5 Update configuration examples to show feature flag usage
+
+## 13. Authoritative Status Reconciliation
+
+- [x] 13.1 Make successful repository polls replace status for every covered PR and issue, including empty active-agent results
+- [x] 13.2 Preserve prior status when workflow-run or required workflow-job queries fail
+- [x] 13.3 Make delayed single-item polls match only workflow runs belonging to the requested PR or issue
+- [x] 13.4 Add regression tests for clearing completed activity, preserving state on errors, and rejecting unrelated single-item runs

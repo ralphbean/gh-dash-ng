@@ -40,6 +40,7 @@ type TriggerDelayedPollMsg struct {
 	Owner  string
 	Repo   string
 	Number int
+	Title  string
 	Delay  time.Duration
 }
 
@@ -48,6 +49,7 @@ type DelayedPollTickMsg struct {
 	Owner  string
 	Repo   string
 	Number int
+	Title  string
 }
 
 // PRInfo represents a PR to monitor for fullsend workflows
@@ -68,26 +70,30 @@ type RepoInfo struct {
 
 // Monitor manages background polling of fullsend workflow status
 type Monitor struct {
-	cache              *data.FullsendCache
-	visibleRepos       map[string]RepoInfo // Set of repos with their PRs (key: "owner/repo")
-	activeWorkflows    map[string]int      // Count of active workflows per repo
-	lastPollTime       time.Time
-	retryAttempts      map[string]int      // Track retry attempts per repo
-	enabled            bool
-	lazyLoadComplete   bool          // Track if initial lazy load is done
-	pollInterval       time.Duration // Polling interval
+	cache             *data.FullsendCache
+	visibleRepos      map[string]RepoInfo // Set of repos with their PRs (key: "owner/repo")
+	activeWorkflows   map[string]int      // Count of active workflows per repo
+	lastPollTime      time.Time
+	retryAttempts     map[string]int // Track retry attempts per repo
+	enabled           bool
+	lazyLoadComplete  bool          // Track if initial lazy load is done
+	pollInterval      time.Duration // Polling interval
+	queryWorkflowRuns func(string, string, int) ([]data.WorkflowRun, *data.RateLimitInfo, error)
+	detectAgents      func(string, string, data.WorkflowRun) ([]data.DetectedAgent, *data.RateLimitInfo, error)
 }
 
 // NewMonitor creates a new fullsend status monitor
 func NewMonitor(enabled bool, pollInterval time.Duration) *Monitor {
 	return &Monitor{
-		cache:            data.NewFullsendCache(),
-		visibleRepos:     make(map[string]RepoInfo),
-		activeWorkflows:  make(map[string]int),
-		retryAttempts:    make(map[string]int),
-		enabled:          enabled,
-		lazyLoadComplete: false,
-		pollInterval:     pollInterval,
+		cache:             data.NewFullsendCache(),
+		visibleRepos:      make(map[string]RepoInfo),
+		activeWorkflows:   make(map[string]int),
+		retryAttempts:     make(map[string]int),
+		enabled:           enabled,
+		lazyLoadComplete:  false,
+		pollInterval:      pollInterval,
+		queryWorkflowRuns: data.QueryWorkflowRuns,
+		detectAgents:      data.DetectFullsendAgents,
 	}
 }
 
@@ -113,7 +119,7 @@ func (m *Monitor) Update(msg tea.Msg) tea.Cmd {
 	case TriggerDelayedPollMsg:
 		return m.scheduleDelayedPoll(msg)
 	case DelayedPollTickMsg:
-		return m.pollSinglePR(msg.Owner, msg.Repo, msg.Number)
+		return m.pollSinglePR(msg.Owner, msg.Repo, msg.Number, msg.Title)
 	}
 
 	return nil
@@ -341,7 +347,7 @@ func (m *Monitor) pollRepoSync(repoKey string, repo RepoInfo) {
 		"owner", repo.Owner,
 		"repo", repo.Repo)
 
-	runs, rateLimit, err := data.QueryWorkflowRuns(repo.Owner, repo.Repo, 50)
+	runs, rateLimit, err := m.queryWorkflowRuns(repo.Owner, repo.Repo, 50)
 
 	log.Debug("QueryWorkflowRuns returned",
 		"owner", repo.Owner,
@@ -390,8 +396,17 @@ func (m *Monitor) pollRepoSync(repoKey string, repo RepoInfo) {
 		"num_issues", len(repo.Issues),
 		"num_runs", len(runs))
 
-	// Process fullsend workflows and match to PRs/issues by display_title
-	activeCount := 0
+	// A successful run query is an authoritative snapshot. Initialize every
+	// covered item to inactive, then add agents found in matching active runs.
+	checkedAt := time.Now()
+	statuses := make(map[int]data.FullsendStatus, len(repo.PRs)+len(repo.Issues))
+	for number := range repo.PRs {
+		statuses[number] = data.FullsendStatus{LastChecked: checkedAt}
+	}
+	for number := range repo.Issues {
+		statuses[number] = data.FullsendStatus{LastChecked: checkedAt}
+	}
+	failedItems := make(map[int]bool)
 	store := data.GetFullsendStatusStore()
 
 	for _, run := range runs {
@@ -430,7 +445,7 @@ func (m *Monitor) pollRepoSync(repoKey string, repo RepoInfo) {
 			"displayTitle", run.DisplayTitle)
 
 		// Detect agents from this workflow run
-		agents, _, err := data.DetectFullsendAgents(repo.Owner, repo.Repo, run)
+		agents, _, err := m.detectAgents(repo.Owner, repo.Repo, run)
 		if err != nil {
 			log.Warn("Failed to detect agents from workflow run",
 				"repo", repoKey,
@@ -438,6 +453,7 @@ func (m *Monitor) pollRepoSync(repoKey string, repo RepoInfo) {
 				"number", number,
 				"runID", run.Id,
 				"error", err)
+			failedItems[number] = true
 			continue
 		}
 
@@ -452,31 +468,34 @@ func (m *Monitor) pollRepoSync(repoKey string, repo RepoInfo) {
 			continue
 		}
 
-		// Count active workflows for this item
-		activeCount++
-
-		// Convert DetectedAgent to ActiveAgent and populate store
-		var storeAgents []data.ActiveAgent
+		status := statuses[number]
 		for _, agent := range activeAgents {
-			storeAgents = append(storeAgents, data.ActiveAgent{
+			status.ActiveAgents = append(status.ActiveAgents, data.ActiveAgent{
 				Type:       agent.Type,
 				WorkflowID: agent.WorkflowID,
 				Status:     agent.Status,
 				StartedAt:  agent.StartedAt,
 			})
 		}
+		statuses[number] = status
 
 		log.Debug("Updating fullsend status",
 			"repo", repoKey,
 			"type", itemType,
 			"number", number,
 			"displayTitle", run.DisplayTitle,
-			"agents", len(storeAgents))
+			"agents", len(status.ActiveAgents))
+	}
 
-		store.Set(repo.Owner, repo.Repo, number, data.FullsendStatus{
-			ActiveAgents: storeAgents,
-			LastChecked:  time.Now(),
-		})
+	activeCount := 0
+	for number, status := range statuses {
+		if failedItems[number] {
+			continue
+		}
+		store.Set(repo.Owner, repo.Repo, number, status)
+		if len(status.ActiveAgents) > 0 {
+			activeCount++
+		}
 	}
 
 	// Update active workflow count for this repo
@@ -490,12 +509,13 @@ func (m *Monitor) scheduleDelayedPoll(msg TriggerDelayedPollMsg) tea.Cmd {
 			Owner:  msg.Owner,
 			Repo:   msg.Repo,
 			Number: msg.Number,
+			Title:  msg.Title,
 		}
 	})
 }
 
 // pollSinglePR polls workflow status for a single PR or issue
-func (m *Monitor) pollSinglePR(owner, repo string, number int) tea.Cmd {
+func (m *Monitor) pollSinglePR(owner, repo string, number int, title string) tea.Cmd {
 	return func() tea.Msg {
 		log.Debug("Polling single item",
 			"owner", owner,
@@ -503,7 +523,7 @@ func (m *Monitor) pollSinglePR(owner, repo string, number int) tea.Cmd {
 			"number", number)
 
 		// Query workflow runs for this repo
-		runs, _, err := data.QueryWorkflowRuns(owner, repo, 50)
+		runs, _, err := m.queryWorkflowRuns(owner, repo, 50)
 		if err != nil {
 			log.Error("Failed to query workflow runs for single item",
 				"owner", owner,
@@ -515,14 +535,16 @@ func (m *Monitor) pollSinglePR(owner, repo string, number int) tea.Cmd {
 
 		store := data.GetFullsendStatusStore()
 
-		// Process fullsend workflows
+		status := data.FullsendStatus{LastChecked: time.Now()}
+
+		// Process only workflows belonging to the requested item.
 		for _, run := range runs {
-			if run.Name != "fullsend" {
+			if run.Name != "fullsend" || run.DisplayTitle != title {
 				continue
 			}
 
 			// Detect agents from this workflow run
-			agents, _, err := data.DetectFullsendAgents(owner, repo, run)
+			agents, _, err := m.detectAgents(owner, repo, run)
 			if err != nil {
 				log.Warn("Failed to detect agents from workflow run",
 					"owner", owner,
@@ -530,7 +552,7 @@ func (m *Monitor) pollSinglePR(owner, repo string, number int) tea.Cmd {
 					"number", number,
 					"runID", run.Id,
 					"error", err)
-				continue
+				return nil
 			}
 
 			if len(agents) == 0 {
@@ -544,10 +566,8 @@ func (m *Monitor) pollSinglePR(owner, repo string, number int) tea.Cmd {
 				continue
 			}
 
-			// Convert DetectedAgent to ActiveAgent and populate store
-			var storeAgents []data.ActiveAgent
 			for _, agent := range activeAgents {
-				storeAgents = append(storeAgents, data.ActiveAgent{
+				status.ActiveAgents = append(status.ActiveAgents, data.ActiveAgent{
 					Type:       agent.Type,
 					WorkflowID: agent.WorkflowID,
 					Status:     agent.Status,
@@ -559,18 +579,11 @@ func (m *Monitor) pollSinglePR(owner, repo string, number int) tea.Cmd {
 				"owner", owner,
 				"repo", repo,
 				"number", number,
-				"agents", len(storeAgents))
-
-			store.Set(owner, repo, number, data.FullsendStatus{
-				ActiveAgents: storeAgents,
-				LastChecked:  time.Now(),
-			})
-
-			// Only process the first matching run
-			break
+				"agents", len(status.ActiveAgents))
 		}
+
+		store.Set(owner, repo, number, status)
 
 		return nil
 	}
 }
-

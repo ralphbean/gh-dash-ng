@@ -643,7 +643,7 @@ func TestRenderMergeStatus(t *testing.T) {
 			wantIcon: "",
 		},
 		{
-			name: "CONFLICTING mergeable renders failure icon",
+			name: "CONFLICTING mergeable renders warning icon",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
@@ -651,63 +651,36 @@ func TestRenderMergeStatus(t *testing.T) {
 					},
 				},
 			},
-			wantIcon: constants.FailureIcon,
+			wantIcon: constants.BlockedIcon,
 		},
 		{
-			name: "CLEAN merge state renders success icon",
+			name: "MERGEABLE renders success icon",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
-						Mergeable:        "MERGEABLE",
-						MergeStateStatus: "CLEAN",
+						Mergeable: "MERGEABLE",
 					},
 				},
 			},
 			wantIcon: constants.SuccessIcon,
 		},
 		{
-			name: "BLOCKED merge state renders blocked icon",
+			name: "UNKNOWN renders warning icon",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
-						Mergeable:        "MERGEABLE",
-						MergeStateStatus: "BLOCKED",
+						Mergeable: "UNKNOWN",
 					},
 				},
 			},
 			wantIcon: constants.BlockedIcon,
 		},
 		{
-			name: "BEHIND merge state renders behind icon",
+			name: "unrecognized mergeable state renders empty string",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
-						Mergeable:        "MERGEABLE",
-						MergeStateStatus: "BEHIND",
-					},
-				},
-			},
-			wantIcon: constants.BehindIcon,
-		},
-		{
-			name: "CONFLICTING takes precedence over CLEAN merge state",
-			pr: &PullRequest{
-				Data: &Data{
-					Primary: &data.PullRequestData{
-						Mergeable:        "CONFLICTING",
-						MergeStateStatus: "CLEAN",
-					},
-				},
-			},
-			wantIcon: constants.FailureIcon,
-		},
-		{
-			name: "unknown merge state renders empty string",
-			pr: &PullRequest{
-				Data: &Data{
-					Primary: &data.PullRequestData{
-						Mergeable:        "UNKNOWN",
-						MergeStateStatus: "UNKNOWN",
+						Mergeable: "FUTURE_VALUE",
 					},
 				},
 			},
@@ -746,29 +719,29 @@ func TestRenderMergeStateStatus(t *testing.T) {
 			expected: "Conflicting",
 		},
 		{
-			name: "CLEAN renders up-to-date text",
+			name: "MERGEABLE renders mergeable text",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
-						MergeStateStatus: "CLEAN",
+						Mergeable: "MERGEABLE",
 					},
 				},
 			},
-			expected: "Up-to-date",
+			expected: "Mergeable",
 		},
 		{
-			name: "BLOCKED renders blocked text",
+			name: "UNKNOWN renders unknown text",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
-						MergeStateStatus: "BLOCKED",
+						Mergeable: "UNKNOWN",
 					},
 				},
 			},
-			expected: "Blocked",
+			expected: "Unknown",
 		},
 		{
-			name: "BEHIND renders behind text",
+			name: "merge state status is ignored",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
@@ -776,26 +749,14 @@ func TestRenderMergeStateStatus(t *testing.T) {
 					},
 				},
 			},
-			expected: "Behind",
+			expected: "",
 		},
 		{
-			name: "CONFLICTING takes precedence over merge state",
+			name: "unrecognized mergeable state renders empty",
 			pr: &PullRequest{
 				Data: &Data{
 					Primary: &data.PullRequestData{
-						Mergeable:        "CONFLICTING",
-						MergeStateStatus: "CLEAN",
-					},
-				},
-			},
-			expected: "Conflicting",
-		},
-		{
-			name: "unknown state renders empty",
-			pr: &PullRequest{
-				Data: &Data{
-					Primary: &data.PullRequestData{
-						MergeStateStatus: "UNKNOWN",
+						Mergeable: "FUTURE_VALUE",
 					},
 				},
 			},

@@ -147,6 +147,20 @@ type ActiveAgent struct {
 - **Fixed polling interval**: Either too aggressive (wastes quota) or too slow (stale status)
 - **No rate limit awareness**: Risks exhausting quota and blocking legitimate dashboard usage
 
+### 7. Authoritative Status Reconciliation
+
+**Decision:** Treat every successful repository or single-item poll as an authoritative snapshot for the items it covers. Build the complete active-agent result first, then replace each covered item's status, including writing an empty active-agent list when a previously active workflow is no longer active. Preserve the prior snapshot when either the workflow-run query or any required workflow-job query fails.
+
+Single-item polls must identify the requested item using the same workflow-to-item matching rule as repository polls. They must never select the first unrelated active fullsend run returned for the repository.
+
+**Rationale:**
+- Positive-only updates leave stale active indicators in the process-wide status store indefinitely
+- Snapshot replacement makes workflow completion, cancellation, and disappearance from the recent-run window converge to the correct inactive state
+- Preserving state on request failure avoids displaying a false completion caused by missing data
+- Consistent matching prevents activity for one PR or issue from being attributed to another
+
+**State lifetime:** Both the status store and optimization caches are in-memory only. Restarting the dashboard discards them; no on-disk fullsend status cache is created.
+
 ## Risks / Trade-offs
 
 **[Risk]** GitHub API rate limits exhausted by workflow polling → **Mitigation:** Adaptive polling intervals, visibility-based filtering, exponential backoff on rate limit warnings

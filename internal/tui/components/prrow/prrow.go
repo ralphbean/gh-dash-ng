@@ -8,8 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
 	"charm.land/log/v2"
-	checks "github.com/dlvhdr/x/gh-checks"
 	"github.com/dlvhdr/gh-dash/v4/internal/config"
+	checks "github.com/dlvhdr/x/gh-checks"
 
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/git"
@@ -402,16 +402,13 @@ func (pr *PullRequest) RenderState() string {
 }
 
 func (pr *PullRequest) RenderMergeStateStatus() string {
-	if pr.Data.Primary.Mergeable == "CONFLICTING" {
-		return constants.FailureIcon + " Conflicting"
-	}
-	switch pr.Data.Primary.MergeStateStatus {
-	case "CLEAN":
-		return constants.SuccessIcon + " Up-to-date"
-	case "BLOCKED":
-		return constants.BlockedIcon + " Blocked"
-	case "BEHIND":
-		return constants.BehindIcon + " Behind"
+	switch pr.Data.Primary.Mergeable {
+	case "CONFLICTING":
+		return constants.BlockedIcon + " Conflicting"
+	case "MERGEABLE":
+		return constants.SuccessIcon + " Mergeable"
+	case "UNKNOWN":
+		return constants.BlockedIcon + " Unknown"
 	default:
 		return ""
 	}
@@ -423,21 +420,16 @@ func (pr *PullRequest) renderMergeStatus() string {
 	}
 	mergeStyle := pr.getTextStyle()
 
-	if pr.Data.Primary.Mergeable == "CONFLICTING" {
-		return mergeStyle.Foreground(pr.Ctx.Theme.ErrorText).
-			Render(constants.FailureIcon)
-	}
-
-	switch pr.Data.Primary.MergeStateStatus {
-	case "CLEAN":
-		return mergeStyle.Foreground(pr.Ctx.Theme.SuccessText).
-			Render(constants.SuccessIcon)
-	case "BLOCKED":
+	switch pr.Data.Primary.Mergeable {
+	case "CONFLICTING":
 		return mergeStyle.Foreground(pr.Ctx.Theme.ErrorText).
 			Render(constants.BlockedIcon)
-	case "BEHIND":
+	case "MERGEABLE":
+		return mergeStyle.Foreground(pr.Ctx.Theme.SuccessText).
+			Render(constants.SuccessIcon)
+	case "UNKNOWN":
 		return mergeStyle.Foreground(pr.Ctx.Theme.WarningText).
-			Render(constants.BehindIcon)
+			Render(constants.BlockedIcon)
 	default:
 		return ""
 	}

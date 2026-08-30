@@ -929,6 +929,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 											Owner:  owner,
 											Repo:   repo,
 											Number: updateMsg.PrNumber,
+											Title:  pr.Primary.GetTitle(),
 											Delay:  5 * time.Second,
 										}
 									}

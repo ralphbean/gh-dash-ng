@@ -18,6 +18,18 @@ The system SHALL periodically query the GitHub API for workflow runs associated 
 - **THEN** the system polls for status updates at regular intervals
 - **AND** stops polling once the workflow completes or fails
 
+#### Scenario: Successful poll replaces prior status
+- **GIVEN** an issue or PR previously had an active fullsend agent
+- **WHEN** a successful poll finds no queued or in-progress fullsend agent for that item
+- **THEN** the system records an empty active-agent status for the item
+- **AND** removes the active status indicator from the UI
+
+#### Scenario: Failed poll preserves prior status
+- **GIVEN** an issue or PR has a previously recorded fullsend status
+- **WHEN** the workflow-run or workflow-job query for that item fails
+- **THEN** the system preserves the previously recorded status
+- **AND** retries according to the error-handling policy
+
 ### Requirement: Fullsend workflow detection
 
 The system SHALL identify fullsend agents by querying jobs within workflow runs named "fullsend" and extracting agent types from job names.
@@ -26,6 +38,12 @@ The system SHALL identify fullsend agents by querying jobs within workflow runs 
 - **WHEN** checking workflow runs for an issue or PR
 - **THEN** the system identifies workflow runs with name "fullsend"
 - **AND** queries the jobs for those workflow runs
+
+#### Scenario: Targeted item polling
+- **WHEN** a delayed poll checks one specific issue or PR
+- **THEN** the system matches workflow runs to that requested item
+- **AND** does not attribute an active workflow for another item to the requested item
+- **AND** records an empty active-agent status when no matching active workflow exists
 
 #### Scenario: Agent type extraction from job names
 - **WHEN** examining jobs from a fullsend workflow run
@@ -78,5 +96,5 @@ The system SHALL handle API errors and network failures without disrupting the d
 
 #### Scenario: Missing workflow data
 - **WHEN** workflow run data cannot be retrieved
-- **THEN** the system assumes no active fullsend agent for that issue or PR
-- **AND** does not display a status indicator
+- **THEN** the system preserves the last known status for that issue or PR
+- **AND** retries the request after a backoff period
