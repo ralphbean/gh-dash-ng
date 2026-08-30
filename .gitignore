@@ -1,4 +1,5 @@
 debug.log
+count-api-calls.sh
 dist/
 gh-prs
 /gh-dash
