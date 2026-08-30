@@ -173,6 +173,17 @@ export function GET() {
             },
           ],
         },
+        reviewStatusBot: {
+          title: "PR Bot Review Status Column",
+          description:
+            "Defines options for the bot review status column in a PR section.",
+          type: "object",
+          oneOf: [
+            {
+              $ref: "./options.json",
+            },
+          ],
+        },
         ci: {
           title: "PR Continuous Integration Column",
           description: "Defines options for the ci column in a PR section.",
@@ -182,6 +193,30 @@ export function GET() {
               $ref: "./options.json",
             },
           ],
+        },
+        mergeStatus: {
+          title: "PR Merge Status Column",
+          description:
+            "Defines options for the mergeability status column in a PR section.",
+          type: "object",
+          oneOf: [
+            {
+              $ref: "./options.json",
+            },
+          ],
+        },
+        star: {
+          title: "PR Star Column",
+          description: "Defines options for the local PR star column.",
+          type: "object",
+          oneOf: [
+            {
+              $ref: "./options.json",
+            },
+          ],
+          default: {
+            width: 2,
+          },
         },
         lines: {
           title: "PR Lines Column",

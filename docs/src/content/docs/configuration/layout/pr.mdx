@@ -33,6 +33,7 @@ By default, PR views display the following columns in the order they're listed:
 1. [`reviewStatus`] with a width of 3 columns.
 1. [`reviewStatusBot`] with a width of 3 columns.
 1. [`ci`] with a width of 3 columns.
+1. [`mergeStatus`] with a width of 3 columns.
 1. [`lines`] with a width of 16 columns.
 
 <Aside type="caution" title="Watch out!">
@@ -55,6 +56,7 @@ By default, PR views display the following columns in the order they're listed:
 [`reviewStatus`]: #pr-review-status-column
 [`reviewStatusBot`]: #pr-review-status-column
 [`ci`]:           #pr-continuous-integration-column
+[`mergeStatus`]:  #pr-merge-status-column
 [`lines`]:        #pr-lines-column
 
 ```yaml
@@ -77,6 +79,12 @@ assignees:
 base:
   width: 15
   hidden: true
+reviewStatusBot:
+  width: 3
+ci:
+  width: 3
+mergeStatus:
+  width: 3
 lines:
   width: 16
 ```
@@ -218,9 +226,9 @@ PR with an approving human and a commenting bot (or vice versa) shows a
 different icon in each column.
 
 | Property          | Type | Default                                            |
-| :---------------- | :--- | :-------------------------------------------------- |
-| `reviewStatus`    | yaml | <Code code={`width: 3`} lang="yaml" frame="none"/>  |
-| `reviewStatusBot` | yaml | <Code code={`width: 3`} lang="yaml" frame="none"/>  |
+| :---------------- | :--- | :------------------------------------------------- |
+| `reviewStatus`    | yaml | <Code code={`width: 3`} lang="yaml" frame="none"/> |
+| `reviewStatusBot` | yaml | <Code code={`width: 3`} lang="yaml" frame="none"/> |
 
 Both columns display the review status of their group as an icon:
 
@@ -234,8 +242,9 @@ Both columns display the review status of their group as an icon:
   [`theme.colors.text.primary`].
 
 The heading for the `reviewStatus` (human) column is
-<NerdFontIcon icon="nf-md-account_check_outline"/>. The heading for the
-`reviewStatusBot` column is <NerdFontIcon icon="nf-md-robot"/>.
+
+<NerdFontIcon icon="nf-md-account_check_outline" />. The heading for the
+`reviewStatusBot` column is <NerdFontIcon icon="nf-md-robot" />.
 
 Set `reviewStatusBot.hidden: true` to hide the bot column while keeping the
 human column visible (or vice versa) - the two columns' visibility isn't
@@ -264,6 +273,26 @@ The heading for this column is <NerdFontIcon icon="nf-oct-checklist"/>
 
 [`theme.colors.text.faint`]: /configuration/theme#faint-text-color
 [`theme.colors.text.primary`]: /configuration/theme#primary-text-color
+[`theme.colors.text.warning`]: /configuration/theme#warning-text-color
+
+## PR Merge Status Column
+
+| Property      | Type | Default                                            |
+| :------------ | :--- | :------------------------------------------------- |
+| `mergeStatus` | yaml | <Code code={`width: 3`} lang="yaml" frame="none"/> |
+
+This column displays whether GitHub can determine that a PR is mergeable. It uses only
+GitHub's conflict-focused `mergeable` value; branch freshness, review requirements,
+unresolved threads, and CI results do not affect this column.
+
+- When the PR has merge conflicts, a warning icon is shown in the error color.
+- When the PR is mergeable, a check icon is shown in the success color.
+- While GitHub is still calculating mergeability, a warning icon is shown in the warning color.
+
+The heading for this column is ``.
+
+[`theme.colors.text.error`]: /configuration/theme#error-text-color
+[`theme.colors.text.success`]: /configuration/theme#success-text-color
 [`theme.colors.text.warning`]: /configuration/theme#warning-text-color
 
 ## PR Labels Column
