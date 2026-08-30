@@ -255,6 +255,7 @@ func (m *Model) fetchPRsCmd() tea.Cmd {
 			fmt.Sprintf("author:@me repo:%s", git.GetRepoShortName(m.Ctx.RepoUrl)),
 			*limit,
 			nil,
+			m.Ctx.Config.Defaults.IgnoredChecks,
 		)
 		if err != nil {
 			return constants.TaskFinishedMsg{
@@ -293,6 +294,7 @@ func (m *Model) fetchPRCmd(branch string) []tea.Cmd {
 			fmt.Sprintf("author:@me repo:%s head:%s", git.GetRepoShortName(m.Ctx.RepoUrl), branch),
 			1,
 			nil,
+			m.Ctx.Config.Defaults.IgnoredChecks,
 		)
 		log.Debug("Fetching PRs", "res", res)
 		if err != nil {

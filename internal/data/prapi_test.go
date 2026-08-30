@@ -1,11 +1,56 @@
 package data
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	gh "github.com/cli/go-gh/v2/pkg/api"
 	"github.com/stretchr/testify/require"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func TestFetchPullRequestsSelectsStatusContextQueryOnlyWhenConfigured(t *testing.T) {
+	originalClient := client
+	defer func() { client = originalClient }()
+
+	var requestBody string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		requestBody = string(body)
+		response := `{"data":{"search":{"nodes":[],"issueCount":0,` +
+			`"pageInfo":{"hasNextPage":false,"startCursor":"","endCursor":""}}}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(response)),
+			Header:     make(http.Header),
+		}, nil
+	})
+	testClient, err := gh.NewGraphQLClient(gh.ClientOptions{
+		Host:      "example.test",
+		AuthToken: "test",
+		Transport: transport,
+	})
+	require.NoError(t, err)
+	client = testClient
+
+	_, err = FetchPullRequests("author:@me", 20, nil, nil)
+	require.NoError(t, err)
+	require.NotContains(t, requestBody, "filteredCommits")
+	require.NotContains(t, requestBody, "contexts(last: 100)")
+
+	_, err = FetchPullRequests("author:@me", 20, nil, []string{"*fullsend/dispatch*"})
+	require.NoError(t, err)
+	require.Contains(t, requestBody, "filteredCommits: commits(last: 1)")
+	require.Contains(t, requestBody, "contexts(last: 100)")
+}
 
 func TestClearEnrichmentCache(t *testing.T) {
 	// Save original state

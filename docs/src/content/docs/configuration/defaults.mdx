@@ -19,6 +19,7 @@ defaults:
     position: auto
   prsLimit: 20
   refetchIntervalMinutes: 30
+  ignoredChecks: []
   view: prs
 ```
 
@@ -210,6 +211,28 @@ dashboard fetches results for the updated query immediately.
 
 [refresh current section]: /getting-started/keybindings/global/#r---refresh-current-section
 [refresh all sections]: /getting-started/keybindings/global/#r---refresh-all-sections
+
+### Ignored CI Checks (`ignoredChecks`)
+
+| Type  | Default |
+| :---- | :-----: |
+| Array |  `[]`   |
+
+This setting contains glob patterns for checks that should not affect the CI indicator in
+the PR list or appear in the checks detail view. Patterns match the slash-delimited identity
+shown in the detail view: `creator/workflow/check` for check runs and `creator/context` for
+legacy statuses. `*` can span slash-delimited components.
+
+```yaml
+defaults:
+  ignoredChecks:
+    - "*fullsend/dispatch*"
+```
+
+When this list is empty, the PR list uses GitHub's existing aggregate status and makes no
+additional API request. Configuring patterns adds up to 100 individual check contexts per PR
+to the existing list query so the status can be calculated locally. Checks beyond that limit
+cannot be considered by the filter.
 
 ### Date format (`dateFormat`)
 

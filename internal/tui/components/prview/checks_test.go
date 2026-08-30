@@ -83,11 +83,7 @@ func newTestModelForChecks(t *testing.T, opts checksTestOptions) Model {
 					CheckRunCountsByState      []data.ContextCountByState
 					StatusContextCount         graphql.Int
 					StatusContextCountsByState []data.ContextCountByState
-					Nodes                      []struct {
-						Typename      graphql.String     `graphql:"__typename"`
-						CheckRun      data.CheckRun      `graphql:"... on CheckRun"`
-						StatusContext data.StatusContext `graphql:"... on StatusContext"`
-					}
+					Nodes                      []data.StatusCheckContextNode
 				} `graphql:"contexts(last: 100)"`
 			}
 			CheckSuites data.CheckSuites `graphql:"checkSuites(last: 20)"`
@@ -107,11 +103,7 @@ func newTestModelForChecks(t *testing.T, opts checksTestOptions) Model {
 	// Build context nodes from check runs and aggregate counts by state
 	stateCounts := make(map[string]int)
 	for _, cr := range opts.checkRuns {
-		contextNode := struct {
-			Typename      graphql.String     `graphql:"__typename"`
-			CheckRun      data.CheckRun      `graphql:"... on CheckRun"`
-			StatusContext data.StatusContext `graphql:"... on StatusContext"`
-		}{
+		contextNode := data.StatusCheckContextNode{
 			Typename: "CheckRun",
 			CheckRun: cr,
 		}
@@ -163,6 +155,19 @@ func makeCheckRun(name string, status string, conclusion checks.CheckRunState) d
 		Status:     graphql.String(status),
 		Conclusion: conclusion,
 	}
+}
+
+func makeQualifiedCheckRun(
+	creator string,
+	workflow string,
+	name string,
+	status string,
+	conclusion checks.CheckRunState,
+) data.CheckRun {
+	checkRun := makeCheckRun(name, status, conclusion)
+	checkRun.CheckSuite.Creator.Login = graphql.String(creator)
+	checkRun.CheckSuite.WorkflowRun.Workflow.Name = graphql.String(workflow)
+	return checkRun
 }
 
 func makeCheckSuite(workflowName string, status string, conclusion string) data.CheckSuiteNode {
@@ -507,6 +512,40 @@ func TestGetChecksStats_Mixed(t *testing.T) {
 	// 1 from IN_PROGRESS check run + 1 from QUEUED check suite
 	require.Equal(t, 2, stats.inProgress,
 		"expected 2 in progress, got: %d", stats.inProgress)
+}
+
+func TestIgnoredChecksAreHiddenAndExcludedFromStats(t *testing.T) {
+	opts := checksTestOptions{
+		checkSuites: data.CheckSuites{
+			Nodes: []data.CheckSuiteNode{makeCheckSuite("fullsend", "QUEUED", "")},
+		},
+		checkRuns: []data.CheckRun{
+			makeQualifiedCheckRun(
+				"fullsend-ai-bot", "fullsend", "dispatch-pr", "COMPLETED", "FAILURE",
+			),
+			makeQualifiedCheckRun(
+				"github-actions", "ci", "test", "COMPLETED", "SUCCESS",
+			),
+		},
+		requiredStatusChecks: []string{
+			"fullsend-ai-bot/fullsend/dispatch-required",
+			"required-test",
+		},
+		rollupState: "FAILURE",
+	}
+
+	m := newTestModelForChecks(t, opts)
+	m.ctx.Config.Defaults.IgnoredChecks = []string{"*fullsend/dispatch*", "fullsend"}
+	got := m.renderChecks()
+	stats := m.getChecksStats()
+
+	require.NotContains(t, got, "dispatch-pr")
+	require.NotContains(t, got, "dispatch-required")
+	require.Contains(t, got, "github-actions/ci/test")
+	require.Contains(t, got, "required-test")
+	require.Equal(t, 0, stats.failed)
+	require.Equal(t, 0, stats.inProgress)
+	require.Equal(t, 1, stats.succeeded)
 }
 
 func TestViewChecksBar_NarrowWidth_NoPanic(t *testing.T) {
