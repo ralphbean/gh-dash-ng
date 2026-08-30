@@ -32,10 +32,12 @@ import Select from "@astrojs/starlight/components/Select.astro";
 
 {/* Inlined to avoid FOUC. Uses global scope from `ThemeProvider.astro` */}
 <script is:inline>
+  /* global StarlightThemeProvider */
   StarlightThemeProvider.updatePickers();
 </script>
 
 <script>
+  /* global StarlightThemeProvider */
   type Theme = "auto" | "dark" | "light";
 
   /** Key in `localStorage` to store color theme preference at. */
