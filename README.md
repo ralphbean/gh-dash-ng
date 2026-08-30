@@ -83,6 +83,29 @@ Thank you to all past and existing sponsors of the original project! 🙏🏽
 
 If you like quickly navigating with your keyboard, seeing the PRs and issues you need and you <strong>love the terminal</strong> - <code>DASH</code> is for you! 🫵🏽
 
+## 🚩 Feature Flags
+
+gh-dash-ng supports experimental features that can be enabled via environment variables:
+
+### Fullsend Integration
+
+Enable real-time monitoring of fullsend AI agent activity on your issues and pull requests.
+
+**Enable:**
+```bash
+export FF_FULLSEND_INTEGRATION=1
+```
+
+**Features:**
+- Visual indicators showing when fullsend agents are actively processing your issues/PRs
+- Animated spinner with agent type abbreviation (e.g., "C" for Code, "R" for Review)
+- Status display in both list views and detail views
+- Intelligent caching to minimize GitHub API usage
+
+**Requirements:**
+- Repository must have fullsend workflow integration configured
+- GitHub Actions workflows with jobs matching the pattern `dispatch / <AgentType>`
+
 ## 📃 Docs
 
 `DASH` has an extensive docs site at [gh-dash.dev/getting-started](https://gh-dash.dev/getting-started).
