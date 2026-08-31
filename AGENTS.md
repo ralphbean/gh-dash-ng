@@ -101,3 +101,14 @@ internal/
 docs/          Documentation site (Astro)
 testdata/      Test fixtures
 ```
+
+## New Configuration Options Checklist
+
+When adding a new column or configuration option to `PrsLayoutConfig` or `IssuesLayoutConfig` in `internal/config/parser.go`:
+
+1. Add the field to the config struct in `internal/config/parser.go` and update the default layout
+2. Add the column rendering logic in the appropriate row component (`internal/tui/components/prrow/prrow.go` or `internal/tui/components/issuerow/issuerow.go`)
+3. Add the column definition in the section component (`internal/tui/components/prssection/prssection.go` or `internal/tui/components/issuessection/issuessection.go`)
+4. Update the layout documentation in `docs/src/content/docs/configuration/layout/pr.mdx` and/or `issue.mdx` — add to the default columns list, YAML example, and a dedicated section
+5. Update the JSON schema in `docs/src/pages/schema/layout/pr.json.ts` and/or `issue.json.ts` — add the property following existing patterns
+6. Add unit tests for the new rendering function
