@@ -2265,6 +2265,9 @@ func (m *Model) executeNotificationAction(action string) tea.Cmd {
 		}
 	case "pr_ready":
 		if pr != nil {
+			if pr.Primary != nil && !pr.Primary.IsDraft {
+				return tasks.PRConvertToDraft(m.ctx, sid, pr)
+			}
 			return tasks.PRReady(m.ctx, sid, pr)
 		}
 	case "pr_merge":

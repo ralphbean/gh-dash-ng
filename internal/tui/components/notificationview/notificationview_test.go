@@ -16,6 +16,7 @@ func TestSetPendingPRAction(t *testing.T) {
 		name           string
 		action         string
 		prNumber       int
+		isDraft        bool
 		expectedAction string
 		expectedPrompt string
 	}{
@@ -34,11 +35,20 @@ func TestSetPendingPRAction(t *testing.T) {
 			expectedPrompt: "Are you sure you want to reopen PR #456? (y/N)",
 		},
 		{
-			name:           "ready action displays as mark as ready",
+			name:           "ready action on draft PR displays as mark as ready",
 			action:         "ready",
 			prNumber:       789,
+			isDraft:        true,
 			expectedAction: "pr_ready",
 			expectedPrompt: "Are you sure you want to mark as ready PR #789? (y/N)",
+		},
+		{
+			name:           "ready action on non-draft PR displays as convert to draft",
+			action:         "ready",
+			prNumber:       789,
+			isDraft:        false,
+			expectedAction: "pr_ready",
+			expectedPrompt: "Are you sure you want to convert to draft PR #789? (y/N)",
 		},
 		{
 			name:           "merge action",
@@ -67,7 +77,7 @@ func TestSetPendingPRAction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewModel(&context.ProgramContext{})
 			m.SetSubjectPR(&prrow.Data{
-				Primary: &data.PullRequestData{Number: tt.prNumber},
+				Primary: &data.PullRequestData{Number: tt.prNumber, IsDraft: tt.isDraft},
 			}, "notif-id")
 
 			prompt := m.SetPendingPRAction(tt.action)
