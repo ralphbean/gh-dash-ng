@@ -126,5 +126,6 @@ Keybinding documentation must stay in sync with key definitions:
 - `internal/tui/keys/prKeys.go` → `docs/src/content/docs/getting-started/keybindings/selected-pr.mdx`
 - `internal/tui/keys/issueKeys.go` → `docs/src/content/docs/getting-started/keybindings/selected-issue.mdx`
 - `internal/tui/keys/notificationKeys.go` → `docs/src/content/docs/getting-started/keybindings/selected-notification.mdx`
+- `internal/tui/keys/completionKeys.go` → `docs/src/content/docs/getting-started/keybindings/completions.mdx`
 
 When changing keybinding behavior or help text, update the corresponding documentation file.
