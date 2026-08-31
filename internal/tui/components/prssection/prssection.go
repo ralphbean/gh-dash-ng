@@ -110,7 +110,7 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 					case "reopen":
 						cmd = tasks.ReopenPR(m.Ctx, sid, pr)
 					case "ready":
-						if prData, ok := pr.(*prrow.Data); ok && !prData.Primary.IsDraft {
+						if prData, ok := pr.(*prrow.Data); ok && prData.Primary != nil && !prData.Primary.IsDraft {
 							cmd = tasks.PRConvertToDraft(m.Ctx, sid, pr)
 						} else {
 							cmd = tasks.PRReady(m.Ctx, sid, pr)
