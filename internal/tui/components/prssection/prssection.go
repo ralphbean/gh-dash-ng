@@ -609,7 +609,10 @@ func (m *Model) NumRows() int {
 }
 
 type SectionPullRequestsFetchedMsg struct {
-	Prs        []prrow.Data
+	Prs []prrow.Data
+	// TotalCount drives the pager counter (e.g., "PR X/Y").
+	// When results come from multiple queries, adjust this to
+	// reflect the combined set so the counter stays accurate.
 	TotalCount int
 	PageInfo   data.PageInfo
 	TaskId     string
@@ -708,6 +711,11 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 		for _, pr := range res.Prs {
 			prs = append(prs, prrow.Data{Primary: &pr})
 		}
+		// TotalCount here comes from the primary search query's IssueCount.
+		// If results are merged from additional queries (e.g., a separate
+		// query for merged PRs), TotalCount must be adjusted to reflect the
+		// combined result set. Otherwise the pager will show a misleading
+		// counter like "PR 4/3".
 		return constants.TaskFinishedMsg{
 			SectionId:   m.Id,
 			SectionType: m.Type,
