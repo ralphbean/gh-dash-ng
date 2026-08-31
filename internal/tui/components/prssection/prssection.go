@@ -336,6 +336,10 @@ func GetSectionColumns(
 		dLayout.MergeStatus,
 		sLayout.MergeStatus,
 	)
+	needsAttentionLayout := config.MergeColumnConfigs(
+		dLayout.NeedsAttention,
+		sLayout.NeedsAttention,
+	)
 
 	if !ctx.Config.Theme.Ui.Table.Compact {
 		return []table.Column{
@@ -343,6 +347,11 @@ func GetSectionColumns(
 				Title:  "",
 				Width:  utils.IntPtr(2),
 				Hidden: starLayout.Hidden,
+			},
+			{
+				Title:  "",
+				Width:  utils.IntPtr(4),
+				Hidden: needsAttentionLayout.Hidden,
 			},
 			{
 				Title:  "",
@@ -410,11 +419,11 @@ func GetSectionColumns(
 				Width:  createdAtLayout.Width,
 				Hidden: createdAtLayout.Hidden,
 			},
-		{
-			Title:  "🤖",
-			Width:  utils.IntPtr(6),
-			Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
-		},
+			{
+				Title:  "🤖",
+				Width:  utils.IntPtr(6),
+				Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
+			},
 		}
 	}
 
@@ -423,6 +432,11 @@ func GetSectionColumns(
 			Title:  "",
 			Width:  utils.IntPtr(2),
 			Hidden: starLayout.Hidden,
+		},
+		{
+			Title:  "",
+			Width:  utils.IntPtr(4),
+			Hidden: needsAttentionLayout.Hidden,
 		},
 		{
 			Title:  "",

@@ -218,6 +218,20 @@ export function GET() {
             width: 2,
           },
         },
+        needsAttention: {
+          title: "PR Needs Attention Column",
+          description:
+            "Defines options for the needs-attention column in a PR section.",
+          type: "object",
+          oneOf: [
+            {
+              $ref: "./options.json",
+            },
+          ],
+          default: {
+            width: 4,
+          },
+        },
         lines: {
           title: "PR Lines Column",
           description: "Defines options for the lines column in a PR section.",

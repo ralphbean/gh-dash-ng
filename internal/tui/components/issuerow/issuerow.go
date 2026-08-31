@@ -11,6 +11,7 @@ import (
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/table"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/constants"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/context"
 	"github.com/dlvhdr/gh-dash/v4/internal/utils"
 )
@@ -23,6 +24,7 @@ type Issue struct {
 
 func (issue *Issue) ToTableRow() table.Row {
 	return table.Row{
+		issue.renderNeedsAttention(),
 		issue.renderStatus(),
 		issue.renderRepoName(),
 		issue.renderTitle(),
@@ -34,6 +36,27 @@ func (issue *Issue) ToTableRow() table.Row {
 		issue.renderCreatedAt(),
 		issue.renderFullsendStatus(),
 	}
+}
+
+func (issue *Issue) renderNeedsAttention() string {
+	user := issue.Ctx.User
+	if user == "" {
+		return ""
+	}
+
+	comments := issue.Data.Comments.Nodes
+	if len(comments) == 0 {
+		return ""
+	}
+
+	// Comments are fetched with "last: 15", so the final node is the
+	// most recent comment. Show the indicator when someone other than
+	// the current user authored it.
+	lastComment := comments[len(comments)-1]
+	if lastComment.Author.Login == user {
+		return ""
+	}
+	return issue.getTextStyle().Render(constants.EyesIcon)
 }
 
 func (issue *Issue) getTextStyle() lipgloss.Style {
@@ -136,7 +159,7 @@ func (issue *Issue) renderFullsendStatus() string {
 	// Get fullsend status from store
 	owner, repoName := issue.Data.GetRepoNameAndOwner()
 	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, issue.Data.GetNumber())
-	
+
 	// Check if there are active agents
 	if len(fullsendStatus.ActiveAgents) == 0 {
 		return ""

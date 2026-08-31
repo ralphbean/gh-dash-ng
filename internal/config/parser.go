@@ -166,19 +166,21 @@ type PrsLayoutConfig struct {
 	NumComments     ColumnConfig `yaml:"numComments,omitempty"`
 	Star            ColumnConfig `yaml:"star,omitempty"`
 	MergeStatus     ColumnConfig `yaml:"mergeStatus,omitempty"`
+	NeedsAttention  ColumnConfig `yaml:"needsAttention,omitempty"`
 }
 
 type IssuesLayoutConfig struct {
-	UpdatedAt   ColumnConfig `yaml:"updatedAt,omitempty"`
-	CreatedAt   ColumnConfig `yaml:"createdAt,omitempty"`
-	State       ColumnConfig `yaml:"state,omitempty"`
-	Repo        ColumnConfig `yaml:"repo,omitempty"`
-	Title       ColumnConfig `yaml:"title,omitempty"`
-	Creator     ColumnConfig `yaml:"creator,omitempty"`
-	CreatorIcon ColumnConfig `yaml:"creatorIcon,omitempty"`
-	Assignees   ColumnConfig `yaml:"assignees,omitempty"`
-	Comments    ColumnConfig `yaml:"comments,omitempty"`
-	Reactions   ColumnConfig `yaml:"reactions,omitempty"`
+	UpdatedAt      ColumnConfig `yaml:"updatedAt,omitempty"`
+	CreatedAt      ColumnConfig `yaml:"createdAt,omitempty"`
+	State          ColumnConfig `yaml:"state,omitempty"`
+	Repo           ColumnConfig `yaml:"repo,omitempty"`
+	Title          ColumnConfig `yaml:"title,omitempty"`
+	Creator        ColumnConfig `yaml:"creator,omitempty"`
+	CreatorIcon    ColumnConfig `yaml:"creatorIcon,omitempty"`
+	Assignees      ColumnConfig `yaml:"assignees,omitempty"`
+	Comments       ColumnConfig `yaml:"comments,omitempty"`
+	Reactions      ColumnConfig `yaml:"reactions,omitempty"`
+	NeedsAttention ColumnConfig `yaml:"needsAttention,omitempty"`
 }
 
 type LayoutConfig struct {

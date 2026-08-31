@@ -22,6 +22,7 @@ Column headings have their color defined by the [`theme.colors.text.primary`] se
 
 By default, Issue views display the following columns in the order they're listed:
 
+1. [`needsAttention`] with a width of 4 columns.
 1. [`updatedAt`] with a width of 7 columns.
 1. [`state`] with a width of 3 columns.
 1. [`repo`] with a width of 15 columns.
@@ -39,6 +40,7 @@ By default, Issue views display the following columns in the order they're liste
 
 </Aside>
       
+[`needsAttention`]: #issues-needs-attention-column
 [`updatedAt`]:    #issues-updated-at-column
 [`state`]:        #issues-state-column
 [`repo`]:         #issues-repo-column
@@ -48,6 +50,8 @@ By default, Issue views display the following columns in the order they're liste
 [`reactions`]:        #issues-reactions-column
 
 ```yaml
+needsAttention:
+  width: 4
 title:
   grow: true
 assignees:
@@ -60,6 +64,18 @@ repo:
 updatedAt:
   width: 7
 ```
+
+## Issues Needs Attention Column
+
+| Property         | Type | Default                                            |
+| :--------------- | :--- | :------------------------------------------------- |
+| `needsAttention` | yaml | <Code code={`width: 4`} lang="yaml" frame="none"/> |
+
+This column displays a 👀 icon when the most recent comment on an issue was
+authored by someone other than the current user, indicating the issue may
+need your attention.
+
+This column has no heading text.
 
 ## Issue Updated At Column
 

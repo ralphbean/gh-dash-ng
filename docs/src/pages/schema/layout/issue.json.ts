@@ -138,6 +138,20 @@ export function GET() {
             },
           ],
         },
+        needsAttention: {
+          title: "Issue Needs Attention Column",
+          description:
+            "Defines options for the needs-attention column in an issue section.",
+          type: "object",
+          oneOf: [
+            {
+              $ref: "./options.json",
+            },
+          ],
+          default: {
+            width: 4,
+          },
+        },
       },
     }),
   );

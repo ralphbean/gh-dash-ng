@@ -98,6 +98,59 @@ func (pr *PullRequest) renderStar() string {
 	return pr.getTextStyle().Foreground(pr.Ctx.Theme.WarningText).Render(constants.StarIcon)
 }
 
+func (pr *PullRequest) renderNeedsAttention() string {
+	if pr.Data == nil || pr.Data.Primary == nil {
+		return ""
+	}
+
+	user := pr.Ctx.User
+	if user == "" {
+		return ""
+	}
+
+	// When enriched data is available, find the most recent comment
+	// or review and check whether somebody else authored it.
+	if pr.Data.IsEnriched {
+		var latestAuthor string
+		var latestTime time.Time
+
+		for _, c := range pr.Data.Enriched.Comments.Nodes {
+			if c.UpdatedAt.After(latestTime) {
+				latestTime = c.UpdatedAt
+				latestAuthor = c.Author.Login
+			}
+		}
+
+		for _, r := range pr.Data.Enriched.Reviews.Nodes {
+			if r.UpdatedAt.After(latestTime) {
+				latestTime = r.UpdatedAt
+				latestAuthor = r.Author.Login
+			}
+		}
+
+		if latestAuthor == "" || latestAuthor == user {
+			return ""
+		}
+		return pr.getTextStyle().Render(constants.EyesIcon)
+	}
+
+	// Fall back to primary data: check the last review (fetched with
+	// "last: 100", so the final node is the most recent).
+	// NOTE: The primary query does not fetch PR comments, only reviews.
+	// Comment-only activity will not trigger the indicator until enrichment
+	// occurs (when the PR is selected). This is a known fidelity trade-off
+	// to keep the list query lightweight.
+	reviews := pr.Data.Primary.Reviews.Nodes
+	if len(reviews) == 0 {
+		return ""
+	}
+	lastReview := reviews[len(reviews)-1]
+	if lastReview.Author.Login == user {
+		return ""
+	}
+	return pr.getTextStyle().Render(constants.EyesIcon)
+}
+
 func (pr *PullRequest) renderState() string {
 	mergeCellStyle := lipgloss.NewStyle()
 
@@ -439,6 +492,7 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 	if !pr.Ctx.Config.Theme.Ui.Table.Compact {
 		return table.Row{
 			pr.renderStar(),
+			pr.renderNeedsAttention(),
 			pr.renderState(),
 			pr.renderExtendedTitle(isSelected),
 			pr.renderLabels(isSelected),
@@ -457,6 +511,7 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 	}
 
 	return table.Row{
+		pr.renderNeedsAttention(),
 		pr.renderState(),
 		pr.renderRepoName(),
 		pr.renderTitle(),
@@ -508,7 +563,8 @@ func (pr *PullRequest) renderFullsendStatus() string {
 
 	// Get fullsend status from store
 	owner, repoName := pr.Data.Primary.GetRepoNameAndOwner()
-	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, pr.Data.Primary.GetNumber())
+	fullsendStatus := data.GetFullsendStatusStore().
+		Get(owner, repoName, pr.Data.Primary.GetNumber())
 
 	log.Debug("renderFullsendStatus",
 		"owner", owner,
