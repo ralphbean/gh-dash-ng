@@ -28,6 +28,12 @@ The repo uses [prism](https://go.dalton.dog/prism) as a test runner, but `go tes
 golangci-lint run --path-mode=abs --config=".golangci.yml" --timeout=5m
 ```
 
+If `golangci-lint` is not available in the environment, install it first:
+
+```sh
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.10.1
+```
+
 Or via task runner:
 
 ```sh
