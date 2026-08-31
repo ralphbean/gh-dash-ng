@@ -154,6 +154,29 @@ type CheckSuites struct {
 	Nodes      []CheckSuiteNode
 }
 
+type StatusCheckContextNode struct {
+	Typename      graphql.String `graphql:"__typename"`
+	CheckRun      CheckRun       `graphql:"... on CheckRun"`
+	StatusContext StatusContext  `graphql:"... on StatusContext"`
+}
+
+type LastCommitStatusContexts struct {
+	Nodes []struct {
+		Commit struct {
+			StatusCheckRollup struct {
+				Contexts struct {
+					Nodes []StatusCheckContextNode
+				} `graphql:"contexts(last: 100)"`
+			}
+		}
+	}
+}
+
+type PullRequestDataWithStatusContexts struct {
+	PullRequestData
+	FilteredCommits LastCommitStatusContexts `graphql:"filteredCommits: commits(last: 1)"`
+}
+
 type StatusCheckRollupStats struct {
 	State    checks.CommitState
 	Contexts struct {
@@ -200,11 +223,7 @@ type LastCommitWithStatusChecks struct {
 					CheckRunCountsByState      []ContextCountByState
 					StatusContextCount         graphql.Int
 					StatusContextCountsByState []ContextCountByState
-					Nodes                      []struct {
-						Typename      graphql.String `graphql:"__typename"`
-						CheckRun      CheckRun       `graphql:"... on CheckRun"`
-						StatusContext StatusContext  `graphql:"... on StatusContext"`
-					}
+					Nodes                      []StatusCheckContextNode
 				} `graphql:"contexts(last: 100)"`
 			}
 			// CheckSuites are fetched separately from StatusCheckRollup because
@@ -633,7 +652,12 @@ func IsEnrichmentCacheCleared() bool {
 	return cachedClient == nil
 }
 
-func FetchPullRequests(query string, limit int, pageInfo *PageInfo) (PullRequestsResponse, error) {
+func FetchPullRequests(
+	query string,
+	limit int,
+	pageInfo *PageInfo,
+	ignoredChecks []string,
+) (PullRequestsResponse, error) {
 	var err error
 	if client == nil {
 		if config.IsFeatureEnabled(config.FF_MOCK_DATA) {
@@ -659,6 +683,10 @@ func FetchPullRequests(query string, limit int, pageInfo *PageInfo) (PullRequest
 
 	if err != nil {
 		return PullRequestsResponse{}, err
+	}
+
+	if len(ignoredChecks) > 0 {
+		return fetchPullRequestsWithStatusContexts(query, limit, pageInfo, ignoredChecks)
 	}
 
 	var queryResult struct {
@@ -689,6 +717,62 @@ func FetchPullRequests(query string, limit int, pageInfo *PageInfo) (PullRequest
 	prs := make([]PullRequestData, 0, len(queryResult.Search.Nodes))
 	for _, node := range queryResult.Search.Nodes {
 		prs = append(prs, node.PullRequest)
+	}
+
+	return PullRequestsResponse{
+		Prs:        prs,
+		TotalCount: queryResult.Search.IssueCount,
+		PageInfo:   queryResult.Search.PageInfo,
+	}, nil
+}
+
+func fetchPullRequestsWithStatusContexts(
+	query string,
+	limit int,
+	pageInfo *PageInfo,
+	ignoredChecks []string,
+) (PullRequestsResponse, error) {
+	var queryResult struct {
+		Search struct {
+			Nodes []struct {
+				PullRequest PullRequestDataWithStatusContexts `graphql:"... on PullRequest"`
+			}
+			IssueCount int
+			PageInfo   PageInfo
+		} `graphql:"search(type: ISSUE, first: $limit, after: $endCursor, query: $query)"`
+	}
+	var endCursor *string
+	if pageInfo != nil {
+		endCursor = &pageInfo.EndCursor
+	}
+	variables := map[string]any{
+		"query":     graphql.String(makePullRequestsQuery(query)),
+		"limit":     graphql.Int(limit),
+		"endCursor": (*graphql.String)(endCursor),
+	}
+	log.Debug(
+		"Fetching PRs with status contexts",
+		"query", query,
+		"limit", limit,
+		"endCursor", endCursor,
+	)
+	if err := client.Query(
+		"SearchPullRequestsWithStatusContexts",
+		&queryResult,
+		variables,
+	); err != nil {
+		return PullRequestsResponse{}, err
+	}
+
+	prs := make([]PullRequestData, 0, len(queryResult.Search.Nodes))
+	for _, node := range queryResult.Search.Nodes {
+		pr := node.PullRequest.PullRequestData
+		if len(pr.Commits.Nodes) > 0 {
+			pr.Commits.Nodes[0].Commit.StatusCheckRollup.State = graphql.String(
+				FilteredStatusCheckRollup(node.PullRequest.FilteredCommits, ignoredChecks),
+			)
+		}
+		prs = append(prs, pr)
 	}
 
 	return PullRequestsResponse{

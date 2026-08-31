@@ -203,6 +203,7 @@ type Defaults struct {
 	AgentPollIntervalMinutes int            `yaml:"agentPollIntervalMinutes,omitempty"`
 	DateFormat               string         `yaml:"dateFormat,omitempty"`
 	SnoozePresets            []SnoozePreset `yaml:"snoozePresets,omitempty"`
+	IgnoredChecks            []string       `yaml:"ignoredChecks,omitempty"`
 }
 
 type RepoConfig struct {
@@ -826,6 +827,15 @@ func validateSnoozePreset(fl validator.FieldLevel) bool {
 	return utils.IsValidSnoozePreset(fl.Field().String())
 }
 
+func validateIgnoredCheckGlobs(patterns []string) error {
+	for _, pattern := range patterns {
+		if _, err := path.Match(pattern, ""); err != nil {
+			return fmt.Errorf("invalid ignored check glob %q: %w", pattern, err)
+		}
+	}
+	return nil
+}
+
 func initParser() ConfigParser {
 	validate = validator.New()
 
@@ -839,7 +849,6 @@ func initParser() ConfigParser {
 
 	validate.RegisterValidation("color", validateColor)
 	validate.RegisterValidation("snoozepreset", validateSnoozePreset)
-
 	return ConfigParser{
 		k: koanf.NewWithConf(conf),
 	}
@@ -901,5 +910,8 @@ func (parser ConfigParser) unmarshalConfigWithDefaults() (Config, error) {
 	}
 
 	err = validate.Struct(cfg)
+	if err == nil {
+		err = validateIgnoredCheckGlobs(cfg.Defaults.IgnoredChecks)
+	}
 	return cfg, err
 }

@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/keys"
 	ghchecks "github.com/dlvhdr/x/gh-checks"
@@ -346,26 +347,7 @@ func (m *Model) viewChecksBar() string {
 }
 
 func renderCheckRunName(checkRun data.CheckRun) string {
-	var parts []string
-	creator := strings.TrimSpace(string(checkRun.CheckSuite.Creator.Login))
-	if creator != "" {
-		parts = append(parts, creator)
-	}
-
-	workflow := strings.TrimSpace(string(checkRun.CheckSuite.WorkflowRun.Workflow.Name))
-	if workflow != "" {
-		parts = append(parts, workflow)
-	}
-
-	name := strings.TrimSpace(string(checkRun.Name))
-	if name != "" {
-		parts = append(parts, name)
-	}
-
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		strings.Join(parts, "/"),
-	)
+	return lipgloss.JoinHorizontal(lipgloss.Top, data.CheckRunIdentity(checkRun))
 }
 
 type CheckCategory int
@@ -404,20 +386,7 @@ func (m *Model) renderStatusContextConclusion(
 }
 
 func renderStatusContextName(statusContext data.StatusContext) string {
-	var parts []string
-	creator := strings.TrimSpace(string(statusContext.Creator.Login))
-	if creator != "" {
-		parts = append(parts, creator)
-	}
-
-	context := strings.TrimSpace(string(statusContext.Context))
-	if context != "" && context != "/" {
-		parts = append(parts, context)
-	}
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		strings.Join(parts, "/"),
-	)
+	return lipgloss.JoinHorizontal(lipgloss.Top, data.StatusContextIdentity(statusContext))
 }
 
 func (sidebar *Model) renderChecks() string {
@@ -444,10 +413,10 @@ func (sidebar *Model) renderChecks() string {
 
 	// Collect check suites that don't appear in statusCheckRollup
 	for _, suite := range lastCommit.Commit.CheckSuites.Nodes {
-		workflowName := strings.TrimSpace(string(suite.WorkflowRun.Workflow.Name))
-		if workflowName == "" {
-			workflowName = strings.TrimSpace(string(suite.App.Name))
+		if data.IsCheckSuiteIgnored(sidebar.ctx.Config.Defaults.IgnoredChecks, suite) {
+			continue
 		}
+		workflowName := data.CheckSuiteIdentity(suite)
 		if workflowName == "" {
 			workflowName = "Workflow"
 		}
@@ -483,6 +452,9 @@ func (sidebar *Model) renderChecks() string {
 		switch node.Typename {
 		case "CheckRun":
 			checkRun := node.CheckRun
+			if data.IsCheckRunIgnored(sidebar.ctx.Config.Defaults.IgnoredChecks, checkRun) {
+				continue
+			}
 			var renderedStatus string
 			category, renderedStatus = sidebar.renderCheckRunConclusion(checkRun)
 			checkName = string(checkRun.Name)
@@ -490,6 +462,12 @@ func (sidebar *Model) renderChecks() string {
 			check = lipgloss.JoinHorizontal(lipgloss.Top, renderedStatus, " ", name)
 		case "StatusContext":
 			statusContext := node.StatusContext
+			if data.IsStatusContextIgnored(
+				sidebar.ctx.Config.Defaults.IgnoredChecks,
+				statusContext,
+			) {
+				continue
+			}
 			var status string
 			category, status = sidebar.renderStatusContextConclusion(statusContext)
 			checkName = string(statusContext.Context)
@@ -518,6 +496,9 @@ func (sidebar *Model) renderChecks() string {
 	if len(branchRules) > 0 {
 		for _, requiredContext := range branchRules[0].RequiredStatusCheckContexts {
 			contextName := string(requiredContext)
+			if config.IsCheckIgnored(sidebar.ctx.Config.Defaults.IgnoredChecks, contextName) {
+				continue
+			}
 			if !reportedChecks[contextName] {
 				// Required check hasn't been reported yet
 				check := lipgloss.JoinHorizontal(
@@ -620,31 +601,46 @@ func (m *Model) getChecksStats() checksStats {
 	}
 
 	lastCommit := commits[0]
-	allChecks := make([]data.ContextCountByState, 0)
-	allChecks = append(
-		allChecks,
-		lastCommit.Commit.StatusCheckRollup.Contexts.CheckRunCountsByState...)
-	allChecks = append(
-		allChecks,
-		lastCommit.Commit.StatusCheckRollup.Contexts.StatusContextCountsByState...)
-
-	for _, count := range allChecks {
-		state := string(count.State)
+	for _, node := range lastCommit.Commit.StatusCheckRollup.Contexts.Nodes {
+		var state string
+		switch node.Typename {
+		case "CheckRun":
+			if data.IsCheckRunIgnored(m.ctx.Config.Defaults.IgnoredChecks, node.CheckRun) {
+				continue
+			}
+			state = string(node.CheckRun.Conclusion)
+			if ghchecks.IsStatusWaiting(string(node.CheckRun.Status)) {
+				state = string(node.CheckRun.Status)
+			}
+		case "StatusContext":
+			if data.IsStatusContextIgnored(
+				m.ctx.Config.Defaults.IgnoredChecks,
+				node.StatusContext,
+			) {
+				continue
+			}
+			state = string(node.StatusContext.State)
+		default:
+			continue
+		}
 		if ghchecks.IsStatusWaiting(state) {
-			res.inProgress += int(count.Count)
+			res.inProgress++
 		} else if ghchecks.IsConclusionAFailure(state) {
-			res.failed += int(count.Count)
+			res.failed++
 		} else if ghchecks.IsConclusionASkip(state) {
-			res.skipped += int(count.Count)
+			res.skipped++
 		} else if ghchecks.IsConclusionNeutral(state) {
-			res.neutral += int(count.Count)
+			res.neutral++
 		} else if ghchecks.IsConclusionASuccess(state) {
-			res.succeeded += int(count.Count)
+			res.succeeded++
 		}
 	}
 
 	// Count check suites that don't appear in statusCheckRollup
 	for _, suite := range lastCommit.Commit.CheckSuites.Nodes {
+		if data.IsCheckSuiteIgnored(m.ctx.Config.Defaults.IgnoredChecks, suite) {
+			continue
+		}
 		if suite.Conclusion == "ACTION_REQUIRED" {
 			res.awaitingApproval++
 		} else if suite.Status == "QUEUED" || suite.Status == "PENDING" || suite.Status == "WAITING" {

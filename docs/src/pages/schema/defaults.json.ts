@@ -16,6 +16,7 @@ export function GET() {
         issuesLimit: 20,
         view: "prs",
         refetchIntervalMinutes: 30,
+        ignoredChecks: [],
       },
       properties: {
         layout: {
@@ -77,6 +78,16 @@ export function GET() {
           type: "integer",
           minimum: 0,
           default: 30,
+        },
+        ignoredChecks: {
+          title: "Ignored CI Checks",
+          description:
+            "Glob patterns for check identities excluded from CI status and details.",
+          type: "array",
+          items: {
+            type: "string",
+          },
+          default: [],
         },
         dateFormat: {
           title: "Date format",
