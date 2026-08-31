@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
@@ -112,6 +113,232 @@ func TestRenderNumComments(t *testing.T) {
 			}
 			if tt.expected == "" && result != "" {
 				t.Errorf("renderNumComments() = %q, want empty string", result)
+			}
+		})
+	}
+}
+
+func TestRenderNeedsAttention(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *PullRequest
+		user     string
+		expected string
+	}{
+		{
+			name:     "nil Data returns empty",
+			pr:       &PullRequest{Data: nil},
+			user:     "me",
+			expected: "",
+		},
+		{
+			name:     "nil Primary returns empty",
+			pr:       &PullRequest{Data: &Data{Primary: nil}},
+			user:     "me",
+			expected: "",
+		},
+		{
+			name: "empty user returns empty",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{},
+				},
+			},
+			user:     "",
+			expected: "",
+		},
+		{
+			name: "no reviews returns empty",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{},
+				},
+			},
+			user:     "me",
+			expected: "",
+		},
+		{
+			name: "last review by current user returns empty",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Reviews: data.ReviewsWithAuthorType{
+							Nodes: reviewNodes(
+								struct {
+									Login    string
+									Typename string
+									State    string
+								}{Login: "other", Typename: "User", State: "COMMENTED"},
+								struct {
+									Login    string
+									Typename string
+									State    string
+								}{Login: "me", Typename: "User", State: "APPROVED"},
+							),
+						},
+					},
+				},
+			},
+			user:     "me",
+			expected: "",
+		},
+		{
+			name: "last review by another user shows eyes",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{
+						Reviews: data.ReviewsWithAuthorType{
+							Nodes: reviewNodes(
+								struct {
+									Login    string
+									Typename string
+									State    string
+								}{Login: "me", Typename: "User", State: "COMMENTED"},
+								struct {
+									Login    string
+									Typename string
+									State    string
+								}{Login: "other", Typename: "User", State: "APPROVED"},
+							),
+						},
+					},
+				},
+			},
+			user:     "me",
+			expected: constants.EyesIcon,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := newTestContext(t)
+			ctx.User = tt.user
+			tt.pr.Ctx = ctx
+			result := tt.pr.renderNeedsAttention()
+			if tt.expected == "" {
+				require.Equal(t, "", result)
+			} else {
+				require.Contains(t, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderNeedsAttentionEnriched(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		pr       *PullRequest
+		user     string
+		expected string
+	}{
+		{
+			name: "enriched: last comment by other user shows eyes",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{},
+					Enriched: data.EnrichedPullRequestData{
+						Comments: data.CommentsWithBody{
+							Nodes: []data.Comment{
+								{
+									Author:    struct{ Login string }{Login: "me"},
+									UpdatedAt: now.Add(-2 * time.Hour),
+								},
+								{
+									Author:    struct{ Login string }{Login: "other"},
+									UpdatedAt: now.Add(-1 * time.Hour),
+								},
+							},
+						},
+					},
+					IsEnriched: true,
+				},
+			},
+			user:     "me",
+			expected: constants.EyesIcon,
+		},
+		{
+			name: "enriched: last comment by current user returns empty",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{},
+					Enriched: data.EnrichedPullRequestData{
+						Comments: data.CommentsWithBody{
+							Nodes: []data.Comment{
+								{
+									Author:    struct{ Login string }{Login: "other"},
+									UpdatedAt: now.Add(-2 * time.Hour),
+								},
+								{
+									Author:    struct{ Login string }{Login: "me"},
+									UpdatedAt: now.Add(-1 * time.Hour),
+								},
+							},
+						},
+					},
+					IsEnriched: true,
+				},
+			},
+			user:     "me",
+			expected: "",
+		},
+		{
+			name: "enriched: review newer than comment wins",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary: &data.PullRequestData{},
+					Enriched: data.EnrichedPullRequestData{
+						Comments: data.CommentsWithBody{
+							Nodes: []data.Comment{
+								{
+									Author:    struct{ Login string }{Login: "me"},
+									UpdatedAt: now.Add(-1 * time.Hour),
+								},
+							},
+						},
+						Reviews: data.Reviews{
+							Nodes: []data.Review{
+								{
+									Author: struct {
+										Login    string
+										Typename graphql.String `graphql:"__typename"`
+									}{Login: "other"},
+									UpdatedAt: now,
+								},
+							},
+						},
+					},
+					IsEnriched: true,
+				},
+			},
+			user:     "me",
+			expected: constants.EyesIcon,
+		},
+		{
+			name: "enriched: no comments or reviews returns empty",
+			pr: &PullRequest{
+				Data: &Data{
+					Primary:    &data.PullRequestData{},
+					Enriched:   data.EnrichedPullRequestData{},
+					IsEnriched: true,
+				},
+			},
+			user:     "me",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := newTestContext(t)
+			ctx.User = tt.user
+			tt.pr.Ctx = ctx
+			result := tt.pr.renderNeedsAttention()
+			if tt.expected == "" {
+				require.Equal(t, "", result)
+			} else {
+				require.Contains(t, result, tt.expected)
 			}
 		})
 	}

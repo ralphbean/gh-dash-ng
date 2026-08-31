@@ -59,6 +59,8 @@ const (
 	SelectionIcon      = "→"
 	StarIcon           = "" // nf-fa-star
 
+	EyesIcon = "👀"
+
 	AutocompleteColumnGap              = 2
 	AutocompleteMinValueWidth          = 8
 	AutocompleteMinDetailWidth         = 10

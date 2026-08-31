@@ -221,8 +221,17 @@ func GetSectionColumns(
 		dLayout.Reactions,
 		sLayout.Reactions,
 	)
+	needsAttentionLayout := config.MergeColumnConfigs(
+		dLayout.NeedsAttention,
+		sLayout.NeedsAttention,
+	)
 
 	return []table.Column{
+		{
+			Title:  "",
+			Width:  utils.IntPtr(4),
+			Hidden: needsAttentionLayout.Hidden,
+		},
 		{
 			Title:  "",
 			Width:  stateLayout.Width,
