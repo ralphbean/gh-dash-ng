@@ -22,6 +22,7 @@ type SectionIdentifier struct {
 
 type UpdatePRMsg struct {
 	PrNumber         int
+	RefetchURL       string
 	IsClosed         *bool
 	NewComment       *data.Comment
 	ReadyForReview   *bool
@@ -392,6 +393,10 @@ func ApprovePR(
 	pr data.RowData,
 	comment string,
 ) tea.Cmd {
+	return fireTask(ctx, approvePRTask(section, pr, comment))
+}
+
+func approvePRTask(section SectionIdentifier, pr data.RowData, comment string) GitHubTask {
 	prNumber := pr.GetNumber()
 	args := []string{
 		"pr",
@@ -404,7 +409,7 @@ func ApprovePR(
 	if comment != "" {
 		args = append(args, "--body", comment)
 	}
-	return fireTask(ctx, GitHubTask{
+	return GitHubTask{
 		Id:           buildTaskId("pr_approve", prNumber),
 		Args:         args,
 		Section:      section,
@@ -412,10 +417,11 @@ func ApprovePR(
 		FinishedText: fmt.Sprintf("pr #%d has been approved", prNumber),
 		Msg: func(c *exec.Cmd, err error) tea.Msg {
 			return UpdatePRMsg{
-				PrNumber: prNumber,
+				PrNumber:   prNumber,
+				RefetchURL: pr.GetUrl(),
 			}
 		},
-	})
+	}
 }
 
 func ApproveWorkflows(

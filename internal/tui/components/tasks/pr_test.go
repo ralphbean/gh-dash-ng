@@ -44,6 +44,27 @@ func TestUpdatePR_MsgDoesNotMarkPRClosed(t *testing.T) {
 	)
 }
 
+func TestApprovePR_TaskRequestsFreshPRData(t *testing.T) {
+	section := SectionIdentifier{Id: 2, Type: "pr"}
+	pr := mockIssue{
+		number:   42,
+		repoName: "owner/repo",
+		url:      "https://github.com/owner/repo/pull/42",
+	}
+
+	task := approvePRTask(section, pr, "LGTM")
+
+	require.Equal(t, "pr_approve_42", task.Id)
+	require.Equal(t,
+		[]string{"pr", "review", "-R", "owner/repo", "42", "--approve", "--body", "LGTM"},
+		task.Args,
+	)
+	updateMsg, ok := task.Msg(nil, nil).(UpdatePRMsg)
+	require.True(t, ok)
+	require.Equal(t, 42, updateMsg.PrNumber)
+	require.Equal(t, pr.url, updateMsg.RefetchURL)
+}
+
 func TestApproveWorkflows_TaskConfiguration(t *testing.T) {
 	var capturedTask context.Task
 

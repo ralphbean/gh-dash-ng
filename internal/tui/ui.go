@@ -908,6 +908,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, scmd)
 
 			if updateMsg, ok := msg.Msg.(tasks.UpdatePRMsg); ok {
+				if msg.Err == nil && updateMsg.RefetchURL != "" {
+					url := updateMsg.RefetchURL
+					sectionId := msg.SectionId
+					cmds = append(cmds, func() tea.Msg {
+						d, err := data.FetchPullRequest(url)
+						return prview.EnrichedPrMsg{
+							Id:   sectionId,
+							Type: prssection.SectionType,
+							Data: d,
+							Err:  err,
+						}
+					})
+				}
+
 				if updateMsg.NewThreadReply != nil {
 					m.prView.AppendThreadReply(
 						updateMsg.NewThreadReply.ThreadId,
