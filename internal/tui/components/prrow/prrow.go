@@ -136,6 +136,10 @@ func (pr *PullRequest) renderNeedsAttention() string {
 
 	// Fall back to primary data: check the last review (fetched with
 	// "last: 100", so the final node is the most recent).
+	// NOTE: The primary query does not fetch PR comments, only reviews.
+	// Comment-only activity will not trigger the indicator until enrichment
+	// occurs (when the PR is selected). This is a known fidelity trade-off
+	// to keep the list query lightweight.
 	reviews := pr.Data.Primary.Reviews.Nodes
 	if len(reviews) == 0 {
 		return ""

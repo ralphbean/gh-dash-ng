@@ -23,6 +23,7 @@ Column headings have their color defined by the [`theme.colors.text.primary`] se
 By default, PR views display the following columns in the order they're listed:
 
 1. [`star`] with a width of 2 columns.
+1. [`needsAttention`] with a width of 4 columns.
 1. [`updatedAt`] with a width of 7 columns.
 1. [`state`] with a width of 3 columns.
 1. [`repo`] with a width of 15 columns.
@@ -46,6 +47,7 @@ By default, PR views display the following columns in the order they're listed:
 </Aside>
       
 [`star`]:         #pr-star-column
+[`needsAttention`]: #pr-needs-attention-column
 [`updatedAt`]:    #pr-updated-at-column
 [`state`]:        #pr-updated-at-column
 [`repo`]:         #pr-repo-column
@@ -62,6 +64,8 @@ By default, PR views display the following columns in the order they're listed:
 ```yaml
 star:
   width: 2
+needsAttention:
+  width: 4
 updatedAt:
   width: 7
 repo:
@@ -98,6 +102,24 @@ lines:
 This column displays a star icon for PRs you've starred, and is blank
 otherwise. Starring is local to your machine and doesn't call the GitHub
 API; toggle it with the `star` keybinding.
+
+This column has no heading text.
+
+## PR Needs Attention Column
+
+| Property         | Type | Default                                            |
+| :--------------- | :--- | :------------------------------------------------- |
+| `needsAttention` | yaml | <Code code={`width: 4`} lang="yaml" frame="none"/> |
+
+This column displays a 👀 icon when the most recent activity on a PR was
+authored by someone other than the current user, indicating the PR may need
+your attention.
+
+When enriched data is available (after selecting a PR), the column considers
+both comments and reviews by timestamp and shows the indicator if the most
+recent one was authored by someone else. Before enrichment, only the last
+review is checked, so comment-only activity may not be reflected until the
+PR is selected.
 
 This column has no heading text.
 
