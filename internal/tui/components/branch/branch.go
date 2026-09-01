@@ -35,7 +35,7 @@ func (b *Branch) renderReviewStatus() string {
 		reviewCellStyle = reviewCellStyle.Foreground(
 			b.Ctx.Theme.SuccessText,
 		)
-		return reviewCellStyle.Render("󰄬")
+		return reviewCellStyle.Render(constants.ApprovedIcon)
 	}
 
 	if b.PR.ReviewDecision == "CHANGES_REQUESTED" {
