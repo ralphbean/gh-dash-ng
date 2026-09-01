@@ -28,7 +28,7 @@ type Dimensions struct {
 const (
 	Ellipsis = "…"
 
-	ApprovedIcon         = "󰄬"
+	ApprovedIcon         = ""
 	ChangesRequestedIcon = ""
 	DotIcon              = ""
 	SmallDotIcon         = "⋅"
