@@ -79,6 +79,7 @@ defaults:
         width: 20
         hidden: true
   refetchIntervalMinutes: 10
+  agentPollIntervalMinutes: 1
   snoozePresets:
     - label: 10m
       after: 10m

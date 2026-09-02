@@ -931,7 +931,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// If a comment was posted to a PR (not a thread reply), trigger delayed poll
 				// This likely launched an agent, so we want to check for it
-				if updateMsg.NewComment != nil && m.fullsendMonitor != nil && m.fullsendMonitor.IsEnabled() {
+				if updateMsg.NewComment != nil && m.fullsendMonitor != nil &&
+					m.fullsendMonitor.IsEnabled() {
 					// Find the PR to get owner/repo
 					for _, section := range m.getCurrentViewSections() {
 						if prSection, ok := section.(*prssection.Model); ok {
@@ -1084,7 +1085,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		task := context.Task{
 			Id:           "fullsend_poll",
 			StartText:    fmt.Sprintf("Polling fullsend status for %d repos", msg.NumRepos),
-			FinishedText: fmt.Sprintf("Fullsend status updated"),
+			FinishedText: "Fullsend status updated",
 			State:        context.TaskStart,
 		}
 		cmd = m.ctx.StartTask(task)
@@ -1100,11 +1101,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fullsendmonitor.TriggerDelayedPollMsg:
 		// Forward to monitor for handling
-		cmd = m.fullsendMonitor.Update(msg)
+		if m.fullsendMonitor != nil {
+			cmd = m.fullsendMonitor.Update(msg)
+		}
 
 	case fullsendmonitor.DelayedPollTickMsg:
 		// Forward to monitor for handling
-		cmd = m.fullsendMonitor.Update(msg)
+		if m.fullsendMonitor != nil {
+			cmd = m.fullsendMonitor.Update(msg)
+		}
 
 	case section.SectionMsg:
 		log.Debug("section.SectionMsg received - checking for poll trigger")
@@ -2358,7 +2363,13 @@ func (m *Model) updateFullsendMonitorRepos() bool {
 	var issues []fullsendmonitor.PRInfo // Reuse PRInfo structure
 	for i, s := range m.issues {
 		if issueSection, ok := s.(*issuessection.Model); ok {
-			log.Debug("Processing issue section", "section_id", i, "num_issues", len(issueSection.Issues))
+			log.Debug(
+				"Processing issue section",
+				"section_id",
+				i,
+				"num_issues",
+				len(issueSection.Issues),
+			)
 			for _, issue := range issueSection.Issues {
 				repoName := issue.GetRepoNameWithOwner()
 				owner, repo := issue.GetRepoNameAndOwner()
@@ -2379,7 +2390,13 @@ func (m *Model) updateFullsendMonitorRepos() bool {
 		}
 	}
 
-	log.Debug("updateFullsendMonitorRepos finished", "total_prs", len(prs), "total_issues", len(issues))
+	log.Debug(
+		"updateFullsendMonitorRepos finished",
+		"total_prs",
+		len(prs),
+		"total_issues",
+		len(issues),
+	)
 
 	if len(prs) > 0 {
 		log.Debug("Updating fullsend monitor with visible PRs", "count", len(prs))

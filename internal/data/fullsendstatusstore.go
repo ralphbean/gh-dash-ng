@@ -13,8 +13,10 @@ type FullsendStatusStore struct {
 	status map[string]FullsendStatus // key: "owner/repo#number"
 }
 
-var globalFullsendStatusStore *FullsendStatusStore
-var storeOnce sync.Once
+var (
+	globalFullsendStatusStore *FullsendStatusStore
+	storeOnce                 sync.Once
+)
 
 // GetFullsendStatusStore returns the global singleton store
 func GetFullsendStatusStore() *FullsendStatusStore {

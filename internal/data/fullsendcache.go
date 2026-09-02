@@ -29,9 +29,9 @@ type WorkflowRunStatus struct {
 
 // ItemCheckCache tracks when we last checked an issue/PR and what runs are active
 type ItemCheckCache struct {
-	LastChecked  time.Time   // Last time we queried this item
-	ActiveRunIDs []int64     // Workflow run IDs currently active
-	CachedAt     time.Time   // When this cache entry was created
+	LastChecked  time.Time // Last time we queried this item
+	ActiveRunIDs []int64   // Workflow run IDs currently active
+	CachedAt     time.Time // When this cache entry was created
 }
 
 // Cache TTL Configuration:

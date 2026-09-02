@@ -11,8 +11,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/config"
+	"github.com/dlvhdr/gh-dash/v4/internal/data"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/common"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/cmpcontroller"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fuzzyselect"
@@ -139,7 +139,6 @@ func (m Model) View() string {
 	s.WriteString("\n")
 	s.WriteString(m.renderLastUpdate())
 	s.WriteString("\n\n")
-
 
 	fullsendStatus := m.renderFullsendStatus()
 	if fullsendStatus != "" {
@@ -485,7 +484,6 @@ func (m *Model) hasData() bool {
 	return m.issue != nil
 }
 
-
 func (m *Model) renderFullsendStatus() string {
 	if !m.hasData() {
 		return ""
@@ -506,7 +504,7 @@ func (m *Model) renderFullsendStatus() string {
 	}
 
 	agents := fullsendStatus.ActiveAgents
-	
+
 	// Unicode spinner characters for animation
 	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
@@ -520,10 +518,10 @@ func (m *Model) renderFullsendStatus() string {
 	}
 
 	fullStatus := strings.Join(statusParts, ", ")
-	
+
 	statusStyle := lipgloss.NewStyle().
 		Foreground(m.ctx.Theme.SecondaryText).
 		Italic(true)
-	
+
 	return " " + statusStyle.Render("fullsend: "+fullStatus)
 }
