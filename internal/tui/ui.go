@@ -1059,9 +1059,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		delete(m.tasks, msg.TaskId)
 
 	case fullsendmonitor.FullsendStatusUpdatedMsg:
-		// TODO: Propagate status updates to issue and PR sections
-		// This will be implemented when sections support dynamic row updates
-		log.Debug("Fullsend status updated", "repo", msg.Repo, "number", msg.Number, "agents", len(msg.ActiveAgents))
+		log.Debug(
+			"Fullsend status updated",
+			"repo",
+			msg.Repo,
+			"number",
+			msg.Number,
+			"agents",
+			len(msg.ActiveAgents),
+		)
+		for i := range m.prs {
+			updated, updateCmd := m.prs[i].Update(msg)
+			m.prs[i] = updated
+			cmds = append(cmds, updateCmd)
+		}
+		for i := range m.issues {
+			updated, updateCmd := m.issues[i].Update(msg)
+			m.issues[i] = updated
+			cmds = append(cmds, updateCmd)
+		}
 
 	case fullsendmonitor.PollStartedMsg:
 		// Show status notification for poll start
@@ -1195,7 +1211,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tm, tabsCmd := m.tabs.Update(msg)
 
 	// Update fullsend monitor
-	monitorCmd := m.fullsendMonitor.Update(msg)
+	var monitorCmd tea.Cmd
+	if m.fullsendMonitor != nil {
+		monitorCmd = m.fullsendMonitor.Update(msg)
+	}
 	m.tabs = tm
 
 	sectionCmd := m.updateCurrentSection(msg)

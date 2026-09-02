@@ -11,6 +11,7 @@ import (
 
 	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fullsendmonitor"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/prrow"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/section"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/table"
@@ -25,7 +26,8 @@ const SectionType = "pr"
 
 type Model struct {
 	section.BaseModel
-	Prs []prrow.Data
+	Prs          []prrow.Data
+	projectedPRs []prrow.Data
 }
 
 func NewModel(
@@ -183,6 +185,9 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 				m.Table.SetRows(m.BuildRows())
 			}
 		}
+
+	case fullsendmonitor.FullsendStatusUpdatedMsg:
+		m.rebuildRowsPreservingSelection()
 
 	case tasks.UpdatePRMsg:
 		for i, currPr := range m.Prs {
@@ -344,6 +349,11 @@ func GetSectionColumns(
 	if !ctx.Config.Theme.Ui.Table.Compact {
 		return []table.Column{
 			{
+				Title:  "🤖",
+				Width:  utils.IntPtr(6),
+				Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
+			},
+			{
 				Title:  "",
 				Width:  utils.IntPtr(2),
 				Hidden: starLayout.Hidden,
@@ -419,15 +429,15 @@ func GetSectionColumns(
 				Width:  createdAtLayout.Width,
 				Hidden: createdAtLayout.Hidden,
 			},
-			{
-				Title:  "🤖",
-				Width:  utils.IntPtr(6),
-				Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
-			},
 		}
 	}
 
 	return []table.Column{
+		{
+			Title:  "🤖",
+			Width:  utils.IntPtr(6),
+			Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
+		},
 		{
 			Title:  "",
 			Width:  utils.IntPtr(2),
@@ -514,11 +524,6 @@ func GetSectionColumns(
 			Width:  createdAtLayout.Width,
 			Hidden: createdAtLayout.Hidden,
 		},
-		{
-			Title:  "🤖",
-			Width:  utils.IntPtr(6),
-			Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
-		},
 	}
 }
 
@@ -537,10 +542,49 @@ func (m Model) visiblePRs() []prrow.Data {
 	return visible
 }
 
-func (m Model) BuildRows() []table.Row {
+func hasActiveAgent(owner, repo string, number int) bool {
+	status := data.GetFullsendStatusStore().Get(owner, repo, number)
+	for _, agent := range status.ActiveAgents {
+		if agent.Status == "queued" || agent.Status == "in_progress" {
+			return true
+		}
+	}
+	return false
+}
+
+func (m Model) orderedPRs() ([]prrow.Data, map[int]string) {
+	visible := m.visiblePRs()
+	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) || len(visible) == 0 {
+		return visible, nil
+	}
+	idle := make([]prrow.Data, 0, len(visible))
+	active := make([]prrow.Data, 0, len(visible))
+	for _, pr := range visible {
+		owner, repo := pr.Primary.GetRepoNameAndOwner()
+		if hasActiveAgent(owner, repo, pr.GetNumber()) {
+			active = append(active, pr)
+		} else {
+			idle = append(idle, pr)
+		}
+	}
+	ordered := append(idle, active...)
+	headers := make(map[int]string, 2)
+	if len(idle) > 0 {
+		headers[0] = "○ No active agent"
+	}
+	if len(active) > 0 {
+		headers[len(idle)] = "● Active agent"
+	}
+	return ordered, headers
+}
+
+func (m *Model) BuildRows() []table.Row {
 	var rows []table.Row
 	currItem := m.Table.GetCurrItem()
-	for i, currPr := range m.visiblePRs() {
+	ordered, headers := m.orderedPRs()
+	m.projectedPRs = ordered
+	m.Table.GroupHeaders = headers
+	for i, currPr := range ordered {
 		prModel := prrow.PullRequest{
 			Ctx:     m.Ctx,
 			Data:    &currPr,
@@ -560,7 +604,8 @@ func (m Model) BuildRows() []table.Row {
 }
 
 func (m *Model) NumRows() int {
-	return len(m.visiblePRs())
+	ordered, _ := m.orderedPRs()
+	return len(ordered)
 }
 
 type SectionPullRequestsFetchedMsg struct {
@@ -572,12 +617,39 @@ type SectionPullRequestsFetchedMsg struct {
 
 func (m *Model) GetCurrRow() data.RowData {
 	idx := m.Table.GetCurrItem()
-	visible := m.visiblePRs()
+	visible := m.projectedPRs
+	if len(m.Table.Rows) == 0 || len(visible) != len(m.Table.Rows) {
+		visible, _ = m.orderedPRs()
+	}
 	if idx < 0 || idx >= len(visible) {
 		return nil
 	}
 	pr := visible[idx]
 	return &pr
+}
+
+func prIdentity(pr *prrow.Data) string {
+	if pr == nil || pr.Primary == nil {
+		return ""
+	}
+	return fmt.Sprintf("pr:%s#%d", pr.GetRepoNameWithOwner(), pr.GetNumber())
+}
+
+func (m *Model) rebuildRowsPreservingSelection() {
+	selected, _ := m.GetCurrRow().(*prrow.Data)
+	identity := prIdentity(selected)
+	m.Table.SetRows(m.BuildRows())
+	if identity == "" {
+		return
+	}
+	ordered, _ := m.orderedPRs()
+	for i := range ordered {
+		if prIdentity(&ordered[i]) == identity {
+			m.Table.SetCurrItem(i)
+			m.Table.SyncViewPortContent()
+			return
+		}
+	}
 }
 
 func (m *Model) FetchNextPageSectionRows() []tea.Cmd {

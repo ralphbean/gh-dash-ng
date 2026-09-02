@@ -10,6 +10,7 @@ import (
 
 	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fullsendmonitor"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/issuerow"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/section"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/table"
@@ -24,7 +25,8 @@ const SectionType = "issue"
 
 type Model struct {
 	section.BaseModel
-	Issues []data.IssueData
+	Issues          []data.IssueData
+	projectedIssues []data.IssueData
 }
 
 func NewModel(
@@ -131,6 +133,9 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 			}
 		}
 
+	case fullsendmonitor.FullsendStatusUpdatedMsg:
+		m.rebuildRowsPreservingSelection()
+
 	case tasks.UpdateIssueMsg:
 		for i, currIssue := range m.Issues {
 			if currIssue.Number == msg.IssueNumber {
@@ -228,6 +233,11 @@ func GetSectionColumns(
 
 	return []table.Column{
 		{
+			Title:  "🤖",
+			Width:  utils.IntPtr(6),
+			Hidden: utils.BoolPtr(!config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION)),
+		},
+		{
 			Title:  "",
 			Width:  utils.IntPtr(4),
 			Hidden: needsAttentionLayout.Hidden,
@@ -295,9 +305,48 @@ func (m Model) visibleIssues() []data.IssueData {
 	return visible
 }
 
-func (m Model) BuildRows() []table.Row {
+func issueHasActiveAgent(issue *data.IssueData) bool {
+	owner, repo := issue.GetRepoNameAndOwner()
+	status := data.GetFullsendStatusStore().Get(owner, repo, issue.GetNumber())
+	for _, agent := range status.ActiveAgents {
+		if agent.Status == "queued" || agent.Status == "in_progress" {
+			return true
+		}
+	}
+	return false
+}
+
+func (m Model) orderedIssues() ([]data.IssueData, map[int]string) {
+	visible := m.visibleIssues()
+	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) || len(visible) == 0 {
+		return visible, nil
+	}
+	idle := make([]data.IssueData, 0, len(visible))
+	active := make([]data.IssueData, 0, len(visible))
+	for _, issue := range visible {
+		if issueHasActiveAgent(&issue) {
+			active = append(active, issue)
+		} else {
+			idle = append(idle, issue)
+		}
+	}
+	ordered := append(idle, active...)
+	headers := make(map[int]string, 2)
+	if len(idle) > 0 {
+		headers[0] = "○ No active agent"
+	}
+	if len(active) > 0 {
+		headers[len(idle)] = "● Active agent"
+	}
+	return ordered, headers
+}
+
+func (m *Model) BuildRows() []table.Row {
 	var rows []table.Row
-	for _, currIssue := range m.visibleIssues() {
+	ordered, headers := m.orderedIssues()
+	m.projectedIssues = ordered
+	m.Table.GroupHeaders = headers
+	for _, currIssue := range ordered {
 		issueModel := issuerow.Issue{Ctx: m.Ctx, Data: currIssue, ShowAuthorIcon: m.ShowAuthorIcon}
 		rows = append(rows, issueModel.ToTableRow())
 	}
@@ -310,17 +359,46 @@ func (m Model) BuildRows() []table.Row {
 }
 
 func (m *Model) NumRows() int {
-	return len(m.visibleIssues())
+	ordered, _ := m.orderedIssues()
+	return len(ordered)
 }
 
 func (m *Model) GetCurrRow() data.RowData {
 	idx := m.Table.GetCurrItem()
-	visible := m.visibleIssues()
+	visible := m.projectedIssues
+	if len(m.Table.Rows) == 0 || len(visible) != len(m.Table.Rows) {
+		visible, _ = m.orderedIssues()
+	}
 	if idx < 0 || idx >= len(visible) {
 		return nil
 	}
 	issue := visible[idx]
 	return &issue
+}
+
+func issueIdentity(issue *data.IssueData) string {
+	if issue == nil {
+		return ""
+	}
+	owner, repo := issue.GetRepoNameAndOwner()
+	return fmt.Sprintf("issue:%s/%s#%d", owner, repo, issue.GetNumber())
+}
+
+func (m *Model) rebuildRowsPreservingSelection() {
+	selected, _ := m.GetCurrRow().(*data.IssueData)
+	identity := issueIdentity(selected)
+	m.Table.SetRows(m.BuildRows())
+	if identity == "" {
+		return
+	}
+	ordered, _ := m.orderedIssues()
+	for i := range ordered {
+		if issueIdentity(&ordered[i]) == identity {
+			m.Table.SetCurrItem(i)
+			m.Table.SyncViewPortContent()
+			return
+		}
+	}
 }
 
 func (m *Model) FetchNextPageSectionRows() []tea.Cmd {

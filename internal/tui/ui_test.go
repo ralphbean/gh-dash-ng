@@ -2342,6 +2342,48 @@ func TestEnterKey_EntersDetailsViewForSelectedRow(t *testing.T) {
 	require.True(t, m.sidebar.IsOpen, "the sidebar/preview should be forced open in details view")
 }
 
+func TestEnterKey_EntersDetailsViewForActiveAgentGroupRow(t *testing.T) {
+	t.Setenv(config.FF_FULLSEND_INTEGRATION, "1")
+	data.GetFullsendStatusStore().Clear()
+	t.Cleanup(data.GetFullsendStatusStore().Clear)
+	m := newDetailsViewTestModel(t, 0, false)
+	prSection := m.prs[0].(*prssection.Model)
+	prSection.Prs = []prrow.Data{
+		{
+			Primary: &data.PullRequestData{
+				Number: 1,
+				Title:  "idle",
+				State:  "OPEN",
+				Repository: data.Repository{
+					Name: "repo", NameWithOwner: "owner/repo", Owner: data.Owner{Login: "owner"},
+				},
+			},
+		},
+		{
+			Primary: &data.PullRequestData{
+				Number: 2,
+				Title:  "active",
+				State:  "OPEN",
+				Repository: data.Repository{
+					Name: "repo", NameWithOwner: "owner/repo", Owner: data.Owner{Login: "owner"},
+				},
+			},
+		},
+	}
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+	prSection.Table.SetRows(prSection.BuildRows())
+	prSection.Table.SetCurrItem(1)
+	require.Equal(t, 2, prSection.GetCurrRow().GetNumber())
+
+	newModel, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = newModel.(Model)
+
+	require.True(t, m.detailsViewState.active)
+	require.Contains(t, m.sidebar.View(), "active")
+}
+
 func TestEnterKey_PopulatesSidebarWhenPreviewWasClosed(t *testing.T) {
 	m := newDetailsViewTestModel(t, 1, false)
 	require.False(t, m.sidebar.IsOpen, "preview starts closed")

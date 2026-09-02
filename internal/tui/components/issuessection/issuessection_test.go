@@ -11,7 +11,9 @@ import (
 
 	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fullsendmonitor"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/prompt"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/search"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/section"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/constants"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/context"
@@ -34,6 +36,91 @@ func collectMsgs(t *testing.T, cmd tea.Cmd) []tea.Msg {
 		return msgs
 	}
 	return []tea.Msg{msg}
+}
+
+func testIssue(number int) data.IssueData {
+	return data.IssueData{
+		Number: number,
+		Repository: data.Repository{
+			Name:          "repo",
+			NameWithOwner: "owner/repo",
+			Owner:         data.Owner{Login: "owner"},
+		},
+	}
+}
+
+func enableFullsend(t *testing.T) {
+	t.Helper()
+	t.Setenv(config.FF_FULLSEND_INTEGRATION, "1")
+	data.GetFullsendStatusStore().Clear()
+	t.Cleanup(data.GetFullsendStatusStore().Clear)
+}
+
+func TestOrderedIssuesGroupsActiveAgentsStably(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.Issues = []data.IssueData{testIssue(1), testIssue(2), testIssue(3)}
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "queued"}},
+	})
+
+	ordered, headers := m.orderedIssues()
+	require.Equal(t, []int{1, 3, 2}, []int{ordered[0].Number, ordered[1].Number, ordered[2].Number})
+	require.Equal(t, "○ No active agent", headers[0])
+	require.Equal(t, "● Active agent", headers[2])
+}
+
+func TestFullsendUpdatePreservesSelectedIssueIdentity(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.IsPromptConfirmationShown = false
+	m.Issues = []data.IssueData{testIssue(1), testIssue(2), testIssue(3)}
+	m.Table.SetRows(m.BuildRows())
+	m.Table.SetCurrItem(1)
+	require.Equal(t, 2, m.GetCurrRow().GetNumber())
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+
+	_, _ = m.Update(fullsendmonitor.FullsendStatusUpdatedMsg{Repo: "owner/repo", Number: 2})
+
+	require.Equal(t, 2, m.GetCurrRow().GetNumber())
+	require.Equal(t, 2, m.Table.GetCurrItem())
+}
+
+func TestIssueFullsendColumnIsLeftmost(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	cols := GetSectionColumns(config.IssuesSectionConfig{}, m.Ctx)
+	require.Equal(t, "🤖", cols[0].Title)
+}
+
+func TestOrderedIssuesWithOnlyActiveGroup(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.Issues = []data.IssueData{testIssue(1), testIssue(2)}
+	for _, number := range []int{1, 2} {
+		data.GetFullsendStatusStore().Set("owner", "repo", number, data.FullsendStatus{
+			ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+		})
+	}
+
+	ordered, headers := m.orderedIssues()
+	require.Equal(t, []int{1, 2}, []int{ordered[0].Number, ordered[1].Number})
+	require.Equal(t, map[int]string{0: "● Active agent"}, headers)
+}
+
+func TestUnknownAndCompletedAgentStatusesRemainInUpperGroup(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.Issues = []data.IssueData{testIssue(1), testIssue(2)}
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "completed"}},
+	})
+
+	ordered, headers := m.orderedIssues()
+	require.Equal(t, []int{1, 2}, []int{ordered[0].Number, ordered[1].Number})
+	require.Equal(t, map[int]string{0: "○ No active agent"}, headers)
 }
 
 // newTestModel creates a minimal Model with the prompt confirmation box
@@ -61,6 +148,7 @@ func newTestModel(action string) Model {
 			IsPromptConfirmationShown: true,
 			PromptConfirmationAction:  action,
 			PromptConfirmationBox:     prompt.NewModel(ctx),
+			SearchBar:                 search.NewModel(ctx, search.SearchOptions{}),
 		},
 		Issues: []data.IssueData{
 			{Number: 42},

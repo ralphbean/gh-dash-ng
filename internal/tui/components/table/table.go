@@ -20,6 +20,7 @@ type Model struct {
 	ctx            context.ProgramContext
 	Columns        []Column
 	Rows           []Row
+	GroupHeaders   map[int]string
 	EmptyState     *string
 	loadingMessage string
 	isLoading      bool
@@ -120,6 +121,10 @@ func (m *Model) ResetCurrItem() {
 	m.rowsViewport.ResetCurrItem()
 }
 
+func (m *Model) SetCurrItem(id int) int {
+	return m.rowsViewport.SetCurrItem(id)
+}
+
 func (m *Model) GetCurrItem() int {
 	return m.rowsViewport.GetCurrItem()
 }
@@ -153,12 +158,14 @@ func (m *Model) LastItem() int {
 }
 
 func (m *Model) cacheColumnWidths() {
-	columns := m.renderHeaderColumns()
-	for i, col := range columns {
+	rendered := m.renderHeaderColumns()
+	shown := 0
+	for i := range m.Columns {
 		if m.Columns[i].Hidden != nil && *m.Columns[i].Hidden {
 			continue
 		}
-		m.Columns[i].ComputedWidth = lipgloss.Width(col)
+		m.Columns[i].ComputedWidth = lipgloss.Width(rendered[shown])
+		shown++
 	}
 }
 
@@ -166,13 +173,52 @@ func (m *Model) SyncViewPortContent() {
 	headerColumns := m.renderHeaderColumns()
 	m.cacheColumnWidths()
 	renderedRows := make([]string, 0, len(m.Rows))
+	itemHeights := make([]int, 0, len(m.Rows))
+	baseHeight := m.rowHeight()
 	for i := range m.Rows {
-		renderedRows = append(renderedRows, m.renderRow(i, headerColumns))
+		row := m.renderRow(i, headerColumns)
+		height := baseHeight
+		if label, ok := m.GroupHeaders[i]; ok && label != "" {
+			row = lipgloss.JoinVertical(lipgloss.Left, m.renderGroupHeader(label), row)
+			height++
+		}
+		renderedRows = append(renderedRows, row)
+		itemHeights = append(itemHeights, height)
 	}
 
+	m.rowsViewport.SetItemHeights(itemHeights)
 	m.rowsViewport.SyncViewPort(
 		lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
 	)
+}
+
+// SetGroupHeaders associates presentation-only headers with the logical rows
+// they precede. Header indices never participate in selection or row actions.
+func (m *Model) SetGroupHeaders(headers map[int]string) {
+	m.GroupHeaders = headers
+	m.SyncViewPortContent()
+}
+
+func (m *Model) rowHeight() int {
+	height := 1
+	if m.ContentHeight > 0 {
+		height = m.ContentHeight
+	} else if !m.ctx.Config.Theme.Ui.Table.Compact {
+		height = 2
+	}
+	if m.ctx.Config.Theme.Ui.Table.ShowSeparator {
+		height++
+	}
+	return height
+}
+
+func (m *Model) renderGroupHeader(label string) string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.ctx.Theme.SecondaryText).
+		Width(m.dimensions.Width).
+		MaxWidth(m.dimensions.Width).
+		Render(label)
 }
 
 func (m *Model) SetRows(rows []Row) {

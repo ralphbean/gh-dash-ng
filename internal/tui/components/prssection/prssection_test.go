@@ -10,6 +10,7 @@ import (
 
 	"github.com/dlvhdr/gh-dash/v4/internal/config"
 	"github.com/dlvhdr/gh-dash/v4/internal/data"
+	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/fullsendmonitor"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/prompt"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/prrow"
 	"github.com/dlvhdr/gh-dash/v4/internal/tui/components/search"
@@ -55,6 +56,124 @@ func newTestModel(action string) Model {
 	m.PromptConfirmationBox.Focus()
 	m.Table.UpdateProgramContext(ctx)
 	return m
+}
+
+func testPR(number int) prrow.Data {
+	return prrow.Data{Primary: &data.PullRequestData{
+		Number: number,
+		Repository: data.Repository{
+			Name:          "repo",
+			NameWithOwner: "owner/repo",
+			Owner:         data.Owner{Login: "owner"},
+		},
+	}}
+}
+
+func enableFullsend(t *testing.T) {
+	t.Helper()
+	t.Setenv(config.FF_FULLSEND_INTEGRATION, "1")
+	data.GetFullsendStatusStore().Clear()
+	t.Cleanup(data.GetFullsendStatusStore().Clear)
+}
+
+func TestOrderedPRsGroupsActiveAgentsStably(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.Prs = []prrow.Data{testPR(1), testPR(2), testPR(3), testPR(4)}
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+	data.GetFullsendStatusStore().Set("owner", "repo", 4, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "queued"}},
+	})
+
+	ordered, headers := m.orderedPRs()
+	require.Equal(t, []int{1, 3, 2, 4}, []int{
+		ordered[0].GetNumber(),
+		ordered[1].GetNumber(),
+		ordered[2].GetNumber(),
+		ordered[3].GetNumber(),
+	})
+	require.Equal(t, "○ No active agent", headers[0])
+	require.Equal(t, "● Active agent", headers[2])
+}
+
+func TestOrderedPRsDisabledKeepsOriginalOrder(t *testing.T) {
+	data.GetFullsendStatusStore().Clear()
+	m := newTestModel("")
+	m.Prs = []prrow.Data{testPR(2), testPR(1)}
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+
+	ordered, headers := m.orderedPRs()
+	require.Equal(t, []int{2, 1}, []int{ordered[0].GetNumber(), ordered[1].GetNumber()})
+	require.Nil(t, headers)
+}
+
+func TestFullsendUpdatePreservesSelectedPRIdentity(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.IsPromptConfirmationShown = false
+	m.Prs = []prrow.Data{testPR(1), testPR(2), testPR(3)}
+	m.Table.SetRows(m.BuildRows())
+	m.Table.SetCurrItem(1)
+	require.Equal(t, 2, m.GetCurrRow().GetNumber())
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+
+	_, _ = m.Update(fullsendmonitor.FullsendStatusUpdatedMsg{Repo: "owner/repo", Number: 2})
+
+	require.Equal(t, 2, m.GetCurrRow().GetNumber())
+	require.Equal(t, 2, m.Table.GetCurrItem())
+}
+
+func TestFullsendUpdatePreservesSelectionAcrossMultipleGroupChanges(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	m.IsPromptConfirmationShown = false
+	m.Prs = []prrow.Data{testPR(1), testPR(2), testPR(3)}
+	data.GetFullsendStatusStore().Set("owner", "repo", 1, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+	m.Table.SetRows(m.BuildRows())
+	m.Table.SetCurrItem(2)
+	require.Equal(t, 1, m.GetCurrRow().GetNumber())
+
+	data.GetFullsendStatusStore().Set("owner", "repo", 1, data.FullsendStatus{})
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "queued"}},
+	})
+	_, _ = m.Update(fullsendmonitor.FullsendStatusUpdatedMsg{Repo: "owner/repo", Number: 2})
+
+	require.Equal(t, 1, m.GetCurrRow().GetNumber())
+	require.Equal(t, 0, m.Table.GetCurrItem())
+}
+
+func TestPRFullsendColumnIsLeftmost(t *testing.T) {
+	enableFullsend(t)
+	m := newTestModel("")
+	cols := GetSectionColumns(config.PrsSectionConfig{}, m.Ctx)
+	require.Equal(t, "🤖", cols[0].Title)
+}
+
+func TestActiveGroupRowActionsTargetSelectedPR(t *testing.T) {
+	enableFullsend(t)
+	withTestStarStore(t)
+	m := newTestModel("")
+	m.IsPromptConfirmationShown = false
+	m.Prs = []prrow.Data{testPR(1), testPR(2)}
+	data.GetFullsendStatusStore().Set("owner", "repo", 2, data.FullsendStatus{
+		ActiveAgents: []data.ActiveAgent{{Status: "in_progress"}},
+	})
+	m.Table.SetRows(m.BuildRows())
+	m.Table.SetCurrItem(1)
+
+	_, _ = m.Update(starKeyPressMsg())
+
+	require.True(t, data.GetStarStore().IsStarred("pr:owner/repo#2"))
+	require.False(t, data.GetStarStore().IsStarred("pr:owner/repo#1"))
 }
 
 func TestConfirmation_EmptyInputDoesNotConfirm(t *testing.T) {

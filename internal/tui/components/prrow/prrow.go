@@ -491,6 +491,7 @@ func (pr *PullRequest) renderMergeStatus() string {
 func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 	if !pr.Ctx.Config.Theme.Ui.Table.Compact {
 		return table.Row{
+			pr.renderFullsendStatus(),
 			pr.renderStar(),
 			pr.renderNeedsAttention(),
 			pr.renderState(),
@@ -506,11 +507,11 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 			pr.RenderLines(isSelected),
 			pr.renderUpdateAt(),
 			pr.renderCreatedAt(),
-			pr.renderFullsendStatus(),
 		}
 	}
 
 	return table.Row{
+		pr.renderFullsendStatus(),
 		pr.renderNeedsAttention(),
 		pr.renderState(),
 		pr.renderRepoName(),
@@ -527,7 +528,6 @@ func (pr *PullRequest) ToTableRow(isSelected bool) table.Row {
 		pr.RenderLines(isSelected),
 		pr.renderUpdateAt(),
 		pr.renderCreatedAt(),
-		pr.renderFullsendStatus(),
 	}
 }
 

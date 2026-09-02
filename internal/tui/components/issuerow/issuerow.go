@@ -24,6 +24,7 @@ type Issue struct {
 
 func (issue *Issue) ToTableRow() table.Row {
 	return table.Row{
+		issue.renderFullsendStatus(),
 		issue.renderNeedsAttention(),
 		issue.renderStatus(),
 		issue.renderRepoName(),
@@ -34,7 +35,6 @@ func (issue *Issue) ToTableRow() table.Row {
 		issue.renderNumReactions(),
 		issue.renderUpdateAt(),
 		issue.renderCreatedAt(),
-		issue.renderFullsendStatus(),
 	}
 }
 

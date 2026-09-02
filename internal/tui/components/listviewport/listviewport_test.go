@@ -130,6 +130,41 @@ func TestNextItemAtLastItem(t *testing.T) {
 	}
 }
 
+func TestVariableItemHeightsKeepDecorationsOutOfNavigation(t *testing.T) {
+	m := newTestModel(testModelOpts{numItems: 3, viewportHeight: 3, itemHeight: 1})
+	m.SetItemHeights([]int{2, 1, 2})
+
+	requireItem := func(want int) {
+		t.Helper()
+		if got := m.GetCurrItem(); got != want {
+			t.Fatalf("expected logical item %d, got %d", want, got)
+		}
+	}
+
+	m.NextItem()
+	requireItem(1)
+	m.NextItem()
+	requireItem(2)
+	m.PrevItem()
+	requireItem(1)
+	m.PrevItem()
+	requireItem(0)
+}
+
+func TestSetCurrItemAccountsForGroupHeaderHeight(t *testing.T) {
+	m := newTestModel(testModelOpts{numItems: 4, viewportHeight: 3, itemHeight: 1})
+	m.SetItemHeights([]int{2, 1, 2, 1})
+
+	m.SetCurrItem(2)
+
+	if got := m.GetCurrItem(); got != 2 {
+		t.Fatalf("expected logical item 2, got %d", got)
+	}
+	if m.topBoundId > 2 || m.bottomBoundId < 2 {
+		t.Fatalf("selected item not within viewport bounds: %d..%d", m.topBoundId, m.bottomBoundId)
+	}
+}
+
 func TestSetNumItemsClampsCurrItem(t *testing.T) {
 	// Simulates snoozing/removing the currently selected bottom row: the
 	// list shrinks out from under the cursor, which must be clamped back
