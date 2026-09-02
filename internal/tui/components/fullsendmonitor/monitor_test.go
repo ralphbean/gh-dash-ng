@@ -69,7 +69,9 @@ func TestPollSinglePRRejectsUnrelatedRun(t *testing.T) {
 
 	monitor := newTestMonitor()
 	monitor.queryWorkflowRuns = func(string, string, int) ([]data.WorkflowRun, *data.RateLimitInfo, error) {
-		return []data.WorkflowRun{{Id: 100, Name: "fullsend", DisplayTitle: "some other PR"}}, nil, nil
+		return []data.WorkflowRun{
+			{Id: 100, Name: "fullsend", DisplayTitle: "some other PR"},
+		}, nil, nil
 	}
 	monitor.detectAgents = func(string, string, data.WorkflowRun) ([]data.DetectedAgent, *data.RateLimitInfo, error) {
 		t.Fatal("detector called for an unrelated workflow run")
@@ -79,7 +81,10 @@ func TestPollSinglePRRejectsUnrelatedRun(t *testing.T) {
 	monitor.pollSinglePR("owner", "repo", 42, "target")()
 
 	if agents := store.Get("owner", "repo", 42).ActiveAgents; len(agents) != 0 {
-		t.Fatalf("expected unrelated run to leave the item inactive, got %d active agents", len(agents))
+		t.Fatalf(
+			"expected unrelated run to leave the item inactive, got %d active agents",
+			len(agents),
+		)
 	}
 }
 

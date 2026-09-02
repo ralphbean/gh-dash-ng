@@ -128,7 +128,13 @@ func (m *Monitor) Update(msg tea.Msg) tea.Cmd {
 // scheduleNextTick returns a command that sends a tick message after the appropriate interval
 func (m *Monitor) scheduleNextTick() tea.Cmd {
 	interval := m.calculatePollInterval()
-	log.Debug("Scheduling next poll tick", "interval", interval, "interval_seconds", interval.Seconds())
+	log.Debug(
+		"Scheduling next poll tick",
+		"interval",
+		interval,
+		"interval_seconds",
+		interval.Seconds(),
+	)
 	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		log.Debug("Poll tick fired", "timestamp", t)
 		return pollTickMsg{timestamp: t}
@@ -237,7 +243,13 @@ func (m *Monitor) pollVisibleRepos(scheduleNext bool) tea.Cmd {
 		log.Debug("Fullsend monitor: first tick (lazy load complete)")
 	}
 
-	log.Debug("pollVisibleRepos called", "num_repos", len(m.visibleRepos), "schedule_next", scheduleNext)
+	log.Debug(
+		"pollVisibleRepos called",
+		"num_repos",
+		len(m.visibleRepos),
+		"schedule_next",
+		scheduleNext,
+	)
 
 	// Create a snapshot of visible repos to poll
 	reposToList := make([]struct {
@@ -282,7 +294,15 @@ func (m *Monitor) pollVisibleRepos(scheduleNext bool) tea.Cmd {
 			totalActiveAgents += count
 		}
 
-		log.Debug("Poll completed", "num_repos", numRepos, "num_prs", totalPRs, "num_active_agents", totalActiveAgents)
+		log.Debug(
+			"Poll completed",
+			"num_repos",
+			numRepos,
+			"num_prs",
+			totalPRs,
+			"num_active_agents",
+			totalActiveAgents,
+		)
 
 		return PollCompletedMsg{
 			NumRepos:        numRepos,

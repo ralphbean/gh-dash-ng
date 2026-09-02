@@ -955,7 +955,6 @@ func (m *Model) hasData() bool {
 	return m.pr != nil && m.pr.Data != nil
 }
 
-
 func (m *Model) renderFullsendStatus() string {
 	// Check if fullsend integration is enabled
 	if !config.IsFeatureEnabled(config.FF_FULLSEND_INTEGRATION) {
@@ -968,7 +967,8 @@ func (m *Model) renderFullsendStatus() string {
 
 	// Get fullsend status from store
 	owner, repoName := m.pr.Data.Primary.GetRepoNameAndOwner()
-	fullsendStatus := data.GetFullsendStatusStore().Get(owner, repoName, m.pr.Data.Primary.GetNumber())
+	fullsendStatus := data.GetFullsendStatusStore().
+		Get(owner, repoName, m.pr.Data.Primary.GetNumber())
 
 	// Check if there are active agents
 	if len(fullsendStatus.ActiveAgents) == 0 {
@@ -976,7 +976,7 @@ func (m *Model) renderFullsendStatus() string {
 	}
 
 	agents := fullsendStatus.ActiveAgents
-	
+
 	// Unicode spinner characters for animation
 	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	frameIndex := (time.Now().UnixMilli() / 100) % int64(len(spinnerFrames))
@@ -990,10 +990,10 @@ func (m *Model) renderFullsendStatus() string {
 	}
 
 	fullStatus := strings.Join(statusParts, ", ")
-	
+
 	statusStyle := lipgloss.NewStyle().
 		Foreground(m.ctx.Theme.SecondaryText).
 		Italic(true)
-	
+
 	return " " + statusStyle.Render("fullsend: "+fullStatus)
 }

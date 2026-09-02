@@ -173,7 +173,11 @@ func PRReady(ctx *context.ProgramContext, section SectionIdentifier, pr data.Row
 	})
 }
 
-func PRConvertToDraft(ctx *context.ProgramContext, section SectionIdentifier, pr data.RowData) tea.Cmd {
+func PRConvertToDraft(
+	ctx *context.ProgramContext,
+	section SectionIdentifier,
+	pr data.RowData,
+) tea.Cmd {
 	prNumber := pr.GetNumber()
 	return fireTask(ctx, GitHubTask{
 		Id: buildTaskId("pr_draft", prNumber),

@@ -36,18 +36,33 @@ func QueryWorkflowRuns(owner, repo string, perPage int) ([]WorkflowRun, *RateLim
 		lastRateLimit = rateLimit
 	}
 
-	log.Debug("Fetched active workflow runs", "repo", fmt.Sprintf("%s/%s", owner, repo), "count", len(allRuns))
+	log.Debug(
+		"Fetched active workflow runs",
+		"repo",
+		fmt.Sprintf("%s/%s", owner, repo),
+		"count",
+		len(allRuns),
+	)
 	return allRuns, lastRateLimit, nil
 }
 
 // queryWorkflowRunsByStatus fetches workflow runs filtered by status
-func queryWorkflowRunsByStatus(owner, repo, status string, perPage int) ([]WorkflowRun, *RateLimitInfo, error) {
+func queryWorkflowRunsByStatus(
+	owner, repo, status string,
+	perPage int,
+) ([]WorkflowRun, *RateLimitInfo, error) {
 	client, err := gh.DefaultRESTClient()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
 	}
 
-	path := fmt.Sprintf("repos/%s/%s/actions/runs?status=%s&per_page=%d", owner, repo, status, perPage)
+	path := fmt.Sprintf(
+		"repos/%s/%s/actions/runs?status=%s&per_page=%d",
+		owner,
+		repo,
+		status,
+		perPage,
+	)
 
 	log.Debug("GitHub REST API call", "method", "GET", "path", path)
 	resp, err := client.Request(http.MethodGet, path, nil)
@@ -64,7 +79,11 @@ func queryWorkflowRunsByStatus(owner, repo, status string, perPage int) ([]Workf
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, rateLimit, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+		return nil, rateLimit, fmt.Errorf(
+			"GitHub API returned %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	var result WorkflowRunsResponse
@@ -77,7 +96,11 @@ func queryWorkflowRunsByStatus(owner, repo, status string, perPage int) ([]Workf
 
 // QueryWorkflowRunsForPR fetches workflow runs associated with a specific PR
 // Filters by the PR's head SHA
-func QueryWorkflowRunsForPR(owner, repo string, prNumber int, headSHA string) ([]WorkflowRun, *RateLimitInfo, error) {
+func QueryWorkflowRunsForPR(
+	owner, repo string,
+	prNumber int,
+	headSHA string,
+) ([]WorkflowRun, *RateLimitInfo, error) {
 	client, err := gh.DefaultRESTClient()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
@@ -100,7 +123,11 @@ func QueryWorkflowRunsForPR(owner, repo string, prNumber int, headSHA string) ([
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, rateLimit, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+		return nil, rateLimit, fmt.Errorf(
+			"GitHub API returned %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	var result WorkflowRunsResponse
@@ -108,7 +135,15 @@ func QueryWorkflowRunsForPR(owner, repo string, prNumber int, headSHA string) ([
 		return nil, rateLimit, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	log.Debug("Fetched workflow runs for PR", "repo", fmt.Sprintf("%s/%s", owner, repo), "pr", prNumber, "count", len(result.WorkflowRuns))
+	log.Debug(
+		"Fetched workflow runs for PR",
+		"repo",
+		fmt.Sprintf("%s/%s", owner, repo),
+		"pr",
+		prNumber,
+		"count",
+		len(result.WorkflowRuns),
+	)
 	return result.WorkflowRuns, rateLimit, nil
 }
 
@@ -139,7 +174,11 @@ func GetWorkflowRunStatus(owner, repo string, runID int64) (*WorkflowRun, *RateL
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, rateLimit, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+		return nil, rateLimit, fmt.Errorf(
+			"GitHub API returned %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	var run WorkflowRun
@@ -203,7 +242,9 @@ type BatchWorkflowResult struct {
 // BatchQueryWorkflowRuns queries workflow runs for multiple items in sequence
 // Returns results for each request, continuing on individual errors
 // Rate limit info is from the last successful request
-func BatchQueryWorkflowRuns(requests []BatchWorkflowRequest) ([]BatchWorkflowResult, *RateLimitInfo, error) {
+func BatchQueryWorkflowRuns(
+	requests []BatchWorkflowRequest,
+) ([]BatchWorkflowResult, *RateLimitInfo, error) {
 	if len(requests) == 0 {
 		return []BatchWorkflowResult{}, nil, nil
 	}
@@ -218,7 +259,12 @@ func BatchQueryWorkflowRuns(requests []BatchWorkflowRequest) ([]BatchWorkflowRes
 
 		if req.HeadSHA != "" {
 			// For PRs, query by head SHA
-			runs, rateLimit, err = QueryWorkflowRunsForPR(req.Owner, req.Repo, req.Number, req.HeadSHA)
+			runs, rateLimit, err = QueryWorkflowRunsForPR(
+				req.Owner,
+				req.Repo,
+				req.Number,
+				req.HeadSHA,
+			)
 		} else {
 			// For issues or general queries, get recent runs
 			runs, rateLimit, err = QueryWorkflowRuns(req.Owner, req.Repo, 50)

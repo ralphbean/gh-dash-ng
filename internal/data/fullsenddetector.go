@@ -19,7 +19,6 @@
 //   - "dispatch / Review" -> agent type "Review"
 //   - "dispatch / Code" -> agent type "Code"
 //   - "dispatch / Triage" -> agent type "Triage"
-//
 package data
 
 import (
@@ -39,8 +38,8 @@ type WorkflowJob struct {
 	ID          int64     `json:"id"`
 	RunID       int64     `json:"run_id"`
 	Name        string    `json:"name"`
-	Status      string    `json:"status"`      // queued, in_progress, completed
-	Conclusion  string    `json:"conclusion"`  // success, failure, cancelled, skipped
+	Status      string    `json:"status"`     // queued, in_progress, completed
+	Conclusion  string    `json:"conclusion"` // success, failure, cancelled, skipped
 	StartedAt   time.Time `json:"started_at"`
 	CompletedAt time.Time `json:"completed_at"`
 }
@@ -75,7 +74,11 @@ func GetWorkflowJobs(owner, repo string, runID int64) ([]WorkflowJob, *RateLimit
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, rateLimit, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+		return nil, rateLimit, fmt.Errorf(
+			"GitHub API returned %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	var result WorkflowJobsResponse
@@ -83,7 +86,15 @@ func GetWorkflowJobs(owner, repo string, runID int64) ([]WorkflowJob, *RateLimit
 		return nil, rateLimit, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	log.Debug("Fetched workflow jobs", "repo", fmt.Sprintf("%s/%s", owner, repo), "runID", runID, "count", len(result.Jobs))
+	log.Debug(
+		"Fetched workflow jobs",
+		"repo",
+		fmt.Sprintf("%s/%s", owner, repo),
+		"runID",
+		runID,
+		"count",
+		len(result.Jobs),
+	)
 	return result.Jobs, rateLimit, nil
 }
 
@@ -104,8 +115,8 @@ func ExtractAgentType(jobName string) (string, bool) {
 		// Filter out infrastructure jobs (not actual agents)
 		// These are orchestration/routing jobs in the fullsend workflow
 		infraJobs := []string{
-			"Harness dispatch",  // Orchestrator
-			"Route",             // Routing logic
+			"Harness dispatch", // Orchestrator
+			"Route",            // Routing logic
 		}
 		for _, infraJob := range infraJobs {
 			if agentType == infraJob {
@@ -131,7 +142,10 @@ type DetectedAgent struct {
 // DetectFullsendAgents identifies active fullsend agents from workflow run jobs
 // Examines jobs for the given workflow run and extracts agent information from job names
 // Returns all detected agents, including those in terminal states (for caller to filter if needed)
-func DetectFullsendAgents(owner, repo string, run WorkflowRun) ([]DetectedAgent, *RateLimitInfo, error) {
+func DetectFullsendAgents(
+	owner, repo string,
+	run WorkflowRun,
+) ([]DetectedAgent, *RateLimitInfo, error) {
 	// Check if this is a fullsend workflow by name
 	if run.Name != "fullsend" {
 		// Not a fullsend workflow, return empty list (not an error)
@@ -141,7 +155,11 @@ func DetectFullsendAgents(owner, repo string, run WorkflowRun) ([]DetectedAgent,
 	// Fetch jobs for this workflow run
 	jobs, rateLimit, err := GetWorkflowJobs(owner, repo, run.Id)
 	if err != nil {
-		return nil, rateLimit, fmt.Errorf("failed to fetch jobs for workflow run %d: %w", run.Id, err)
+		return nil, rateLimit, fmt.Errorf(
+			"failed to fetch jobs for workflow run %d: %w",
+			run.Id,
+			err,
+		)
 	}
 
 	agents := []DetectedAgent{}
@@ -183,7 +201,10 @@ func FilterActiveAgents(agents []DetectedAgent) []DetectedAgent {
 }
 
 // DetectActiveFullsendAgents is a convenience function that detects and filters to only active agents
-func DetectActiveFullsendAgents(owner, repo string, run WorkflowRun) ([]DetectedAgent, *RateLimitInfo, error) {
+func DetectActiveFullsendAgents(
+	owner, repo string,
+	run WorkflowRun,
+) ([]DetectedAgent, *RateLimitInfo, error) {
 	agents, rateLimit, err := DetectFullsendAgents(owner, repo, run)
 	if err != nil {
 		return nil, rateLimit, err
@@ -194,7 +215,10 @@ func DetectActiveFullsendAgents(owner, repo string, run WorkflowRun) ([]Detected
 // DetectFullsendAgentsFromMultipleRuns processes multiple workflow runs and detects fullsend agents
 // Handles multiple concurrent agents across different runs for the same issue/PR
 // Returns all detected agents (caller can filter by active/completed as needed)
-func DetectFullsendAgentsFromMultipleRuns(owner, repo string, runs []WorkflowRun) ([]DetectedAgent, *RateLimitInfo, error) {
+func DetectFullsendAgentsFromMultipleRuns(
+	owner, repo string,
+	runs []WorkflowRun,
+) ([]DetectedAgent, *RateLimitInfo, error) {
 	allAgents := []DetectedAgent{}
 	var lastRateLimit *RateLimitInfo
 
