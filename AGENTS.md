@@ -118,3 +118,14 @@ When adding a new column or configuration option to `PrsLayoutConfig` or `Issues
 4. Update the layout documentation in `docs/src/content/docs/configuration/layout/pr.mdx` and/or `issue.mdx` — add to the default columns list, YAML example, and a dedicated section
 5. Update the JSON schema in `docs/src/pages/schema/layout/pr.json.ts` and/or `issue.json.ts` — add the property following existing patterns
 6. Add unit tests for the new rendering function
+
+## Documentation Coupling
+
+Keybinding documentation must stay in sync with key definitions:
+
+- `internal/tui/keys/prKeys.go` → `docs/src/content/docs/getting-started/keybindings/selected-pr.mdx`
+- `internal/tui/keys/issueKeys.go` → `docs/src/content/docs/getting-started/keybindings/selected-issue.mdx`
+- `internal/tui/keys/notificationKeys.go` → `docs/src/content/docs/getting-started/keybindings/selected-notification.mdx`
+- `internal/tui/keys/completionKeys.go` → `docs/src/content/docs/getting-started/keybindings/completions.mdx`
+
+When changing keybinding behavior or help text, update the corresponding documentation file.
