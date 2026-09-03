@@ -20,7 +20,7 @@ func TestUpdatePR_TaskConfiguration(t *testing.T) {
 	task := updatePRTask(section, pr)
 
 	require.Equal(t, "pr_update_42", task.Id)
-	require.Equal(t, []string{"pr", "update-branch", "42", "-R", "owner/repo"}, task.Args)
+	require.Equal(t, []string{"pr", "update-branch", "42", "--rebase", "-R", "owner/repo"}, task.Args)
 	require.Equal(t, section, task.Section)
 	require.Equal(t, "Updating PR #42", task.StartText)
 	require.Equal(t, "PR #42 has been updated", task.FinishedText)

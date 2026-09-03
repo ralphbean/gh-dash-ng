@@ -285,6 +285,7 @@ func updatePRTask(section SectionIdentifier, pr data.RowData) GitHubTask {
 			"pr",
 			"update-branch",
 			fmt.Sprint(prNumber),
+			"--rebase",
 			"-R",
 			pr.GetRepoNameWithOwner(),
 		},
