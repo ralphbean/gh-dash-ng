@@ -62,6 +62,12 @@ Run formatting standalone:
 gofumpt -w $(git ls-files '*.go')
 ```
 
+If `gofumpt` is not available in the environment, install it first:
+
+```sh
+go install mvdan.cc/gofumpt@v0.8.0
+```
+
 Or via task runner:
 
 ```sh
